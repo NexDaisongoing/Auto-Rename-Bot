@@ -10,6 +10,9 @@ import pyrogram.utils
 pyrogram.utils.MIN_CHAT_ID = -999999999999
 pyrogram.utils.MIN_CHANNEL_ID = -1009999999999
 
+# Health check route handler
+async def health_check(request):
+    return web.Response(text="OK", status=200)
 
 class Bot(Client):
 
@@ -30,14 +33,30 @@ class Bot(Client):
         self.mention = me.mention
         self.username = me.username  
         self.uptime = Config.BOT_UPTIME     
+        
         if Config.WEBHOOK:
-            app = web.AppRunner(await web_server())
-            await app.setup()       
-            await web.TCPSite(app, "0.0.0.0", 8080).start()     
+            # Create the web application
+            app = web.Application()
+            
+            # Add routes from web_server
+            web_app = await web_server()
+            app.add_routes(web_app.router)
+            
+            # Add health check route
+            app.router.add_get('/health', health_check)
+            
+            # Setup and start the server
+            runner = web.AppRunner(app)
+            await runner.setup()
+            await web.TCPSite(runner, "0.0.0.0", 8080).start()     
+            
         print(f"{me.first_name} Is Started.....✨️")
         for id in Config.ADMIN:
-            try: await self.send_message(Config.LOG_CHANNEL, f"**{me.first_name}  Is Started.....✨️**")                                
-            except: pass
+            try: 
+                await self.send_message(Config.LOG_CHANNEL, f"**{me.first_name}  Is Started.....✨️**")                                
+            except: 
+                pass
+                
         if Config.LOG_CHANNEL:
             try:
                 curr = datetime.now(timezone("Asia/Kolkata"))
@@ -48,8 +67,6 @@ class Bot(Client):
                 print("Please Make This Is Admin In Your Log Channel")
 
 Bot().run()
-
-
 
 # Jishu Developer 
 # Don't Remove Credit 🥺
