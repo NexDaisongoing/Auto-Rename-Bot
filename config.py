@@ -5,7 +5,7 @@ class Config(object):
     # pyro client config
     API_ID    = os.environ.get("API_ID", "24810254")
     API_HASH  = os.environ.get("API_HASH", "aadb42caec01695fa0a77c09b3e0ef47")
-    BOT_TOKEN = os.environ.get("BOT_TOKEN", "6336256307:AAF8htgL8PTyulhefLKqqxf5pI8k-TS1YSM") 
+    BOT_TOKEN = os.environ.get("BOT_TOKEN", "7635660101:AAFcueHs0cMya_YZHWMJT8SRoiCz5-OrL8o") 
 
     # database config
     DB_NAME = os.environ.get("DB_NAME","madflixbotz")     
@@ -14,9 +14,9 @@ class Config(object):
     # other configs
     BOT_UPTIME  = time.time()
     START_PIC   = os.environ.get("START_PIC", "https://graph.org/file/4b306f4b15c23a8f22e58.jpg")
-    ADMIN       = [int(admin) if id_pattern.search(admin) else admin for admin in os.environ.get('ADMIN', '').split()]
-    FORCE_SUB   = os.environ.get("FORCE_SUB", "") 
-    LOG_CHANNEL = int(os.environ.get("LOG_CHANNEL", ""))
+    ADMIN       = [int(admin) if id_pattern.search(admin) else admin for admin in os.environ.get('ADMIN', '7077099034').split()]
+    FORCE_SUB   = os.environ.get("FORCE_SUB", "-1002419010340") 
+    LOG_CHANNEL = int(os.environ.get("LOG_CHANNEL", "-1002419010340"))
     
     # wes response configuration     
     WEBHOOK = bool(os.environ.get("WEBHOOK", "True"))
