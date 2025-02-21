@@ -221,6 +221,55 @@ async def auto_rename_files(client, message):
             print(f"Error getting duration: {e}")
 
         upload_msg = await download_msg.edit("Trying To Uploading.....")
+
+        try:
+            # Prepare metadata command
+            ffmpeg_cmd = shutil.which('ffmpeg')
+            if not ffmpeg_cmd:
+                raise FileNotFoundError("FFmpeg not found. Please install FFmpeg.")
+
+            metadata_file_path = f"Metadata/{new_file_name}"
+            os.makedirs(os.path.dirname(metadata_file_path), exist_ok=True)
+
+            metadata_command = [
+                ffmpeg_cmd,
+                '-i', file_path,
+                '-metadata', f'title={await madflixbotz.get_title(user_id)}',
+                '-metadata', f'artist={await madflixbotz.get_artist(user_id)}',
+                '-metadata', f'author={await madflixbotz.get_author(user_id)}',
+                '-metadata:s:v', f'title={await madflixbotz.get_video(user_id)}',
+                '-metadata:s:a', f'title={await madflixbotz.get_audio(user_id)}',
+                '-metadata:s:s', f'title={await madflixbotz.get_subtitle(user_id)}',
+                '-map', '0',
+                '-c', 'copy',
+                '-loglevel', 'error',
+                metadata_file_path
+            ]
+
+            # Execute the metadata command
+            process = await asyncio.create_subprocess_exec(
+                *metadata_command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await process.communicate()
+
+            if process.returncode != 0:
+                error_message = stderr.decode().strip()
+                raise RuntimeError(f"Metadata processing failed: {error_message}")
+
+            # Use the new metadata file path for upload
+            file_path = metadata_file_path
+
+        except FileNotFoundError as e:
+            await upload_msg.edit(f"**Error:** {str(e)}")
+            return
+        except RuntimeError as e:
+            await upload_msg.edit(f"**Metadata Error:** {str(e)}")
+            return
+        except Exception as e:
+            await upload_msg.edit(f"**Unexpected Error:** {str(e)}")
+            return
         ph_path = None
         c_caption = await madflixbotz.get_caption(message.chat.id)
         c_thumb = await madflixbotz.get_thumbnail(message.chat.id)
