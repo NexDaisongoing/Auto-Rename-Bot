@@ -88,7 +88,59 @@ If You Like My Bots & Projects, You Can 🎁 Donate Me Any Amount From 10 Rs Upt
     
 Here Is The Help For My Commands."""
 
+    SEND_METADATA = """
+<b>--Metadata Settings:--</b>
 
+➜ /metadata: Turn on or off metadata.
+
+<b>Description</b> : Metadata will change MKV video files including all audio, streams, and subtitle titles."""
+
+
+    SOURCE_TXT = """
+<b>ʜᴇʏ,
+ ᴛʜɪs ɪs ᴀᴜᴛᴏ ʀᴇɴᴀᴍᴇ ʙᴏᴛ,
+ᴀɴ ᴏᴩᴇɴ sᴏᴜʀᴄᴇ ᴛᴇʟᴇɢʀᴀᴍ ᴀᴜᴛᴏ ʀᴇɴᴀᴍᴇ ʙᴏᴛ.</b>
+
+ᴡʀɪᴛᴛᴇɴ ɪɴ ᴩʏᴛʜᴏɴ ᴡɪᴛʜ ᴛʜᴇ ʜᴇʟᴩ ᴏғ :
+[ᴩʏʀᴏɢʀᴀᴍ](https://github.com/pyrogram/pyrogram)
+[ᴩʏᴛʜᴏɴ-ᴛᴇʟᴇɢʀᴀᴍ-ʙᴏᴛ](https://github.com/python-telegram-bot/python-telegram-bot)
+ᴀɴᴅ ᴜsɪɴɢ [ᴍᴏɴɢᴏ](https://cloud.mongodb.com) ᴀs ᴅᴀᴛᴀʙᴀsᴇ.
+
+
+<b>ʜᴇʀᴇ ɪs ᴍʏ sᴏᴜʀᴄᴇ ᴄᴏᴅᴇ :</b> [ɢɪᴛʜᴜʙ](https://github.com/codeflix_bots/autorenamebot)
+
+
+ᴀᴜᴛᴏ ʀᴇɴᴀᴍᴇ ʙᴏᴛ ɪs ʟɪᴄᴇɴsᴇᴅ ᴜɴᴅᴇʀ ᴛʜᴇ [ᴍɪᴛ ʟɪᴄᴇɴsᴇ](https://github.com/codeflix_bots/autorenamebot/blob/main/LICENSE).
+© 2024 | [sᴜᴘᴘᴏʀᴛ ᴄʜᴀᴛ](https://t.me/codeflixsupport), ᴀʟʟ ʀɪɢʜᴛs ʀᴇsᴇʀᴠᴇᴅ."""
+
+    META_TXT = "aalu"
+**ᴍᴀɴᴀɢɪɴɢ ᴍᴇᴛᴀᴅᴀᴛᴀ ғᴏʀ ʏᴏᴜʀ ᴠɪᴅᴇᴏs ᴀɴᴅ ғɪʟᴇs**
+
+**ᴠᴀʀɪᴏᴜꜱ ᴍᴇᴛᴀᴅᴀᴛᴀ:**
+
+- **ᴛɪᴛʟᴇ**: Descriptive title of the media.
+- **ᴀᴜᴛʜᴏʀ**: The creator or owner of the media.
+- **ᴀʀᴛɪꜱᴛ**: The artist associated with the media.
+- **ᴀᴜᴅɪᴏ**: Title or description of audio content.
+- **ꜱᴜʙᴛɪᴛʟᴇ**: Title of subtitle content.
+- **ᴠɪᴅᴇᴏ**: Title or description of video content.
+
+**ᴄᴏᴍᴍᴀɴᴅꜱ ᴛᴏ ᴛᴜʀɴ ᴏɴ ᴏғғ ᴍᴇᴛᴀᴅᴀᴛᴀ:**
+➜ /metadata: Turn on or off metadata.
+
+**ᴄᴏᴍᴍᴀɴᴅꜱ ᴛᴏ ꜱᴇᴛ ᴍᴇᴛᴀᴅᴀᴛᴀ:**
+
+➜ /settitle: Set a custom title of media.
+➜ /setauthor: Set the author.
+➜ /setartist: Set the artist.
+➜ /setaudio: Set audio title.
+➜ /setsubtitle: Set subtitle title.
+➜ /setvideo: Set video title.
+
+**ᴇxᴀᴍᴘʟᴇ:** /settitle Your Title Here
+
+**ᴜꜱᴇ ᴛʜᴇꜱᴇ ᴄᴏᴍᴍᴀɴᴅꜱ ᴛᴏ ᴇɴʀɪᴄʜ ʏᴏᴜʀ ᴍᴇᴅɪᴀ ᴡɪᴛʜ ᴀᴅᴅɪᴛɪᴏɴᴀʟ ᴍᴇᴛᴀᴅᴀᴛᴀ ɪɴꜰᴏʀᴍᴀᴛɪᴏɴ!**
+"""
 
 
 
