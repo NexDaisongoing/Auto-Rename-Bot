@@ -26,21 +26,39 @@ class MessageCollector:
             raise TimeoutError("Request timed out")
 
 async def ask(client, chat_id, text, timeout=60, filters=None):
-    # Create a filter that only accepts messages from the specified chat
-    chat_filter = filters.chat(chat_id) if filters else None
-    message_filter = filters & chat_filter if filters else chat_filter
+    """
+    Custom ask function that properly handles filters
+    """
+    # Create a base filter for the chat
+    base_filter = filters.chat(chat_id)
+    
+    # If additional filters are provided, combine them with the chat filter
+    if filters:
+        final_filter = base_filter & filters
+    else:
+        final_filter = base_filter
 
     collector = MessageCollector(client, chat_id, timeout)
-    handler = client.add_handler(MessageHandler(collector.handler, filters=message_filter))
+    
+    # Add the handler with the final filter
+    handler = client.add_handler(
+        MessageHandler(
+            collector.handler,
+            filters=final_filter
+        )
+    )
 
-    await client.send_message(chat_id, text, disable_web_page_preview=True)
+    await client.send_message(
+        chat_id,
+        text,
+        disable_web_page_preview=True
+    )
 
     try:
         response = await collector.wait_for_response()
         return response
     finally:
         client.remove_handler(handler)
-
 ON = [
     [InlineKeyboardButton('ᴍᴇᴛᴀᴅᴀᴛᴀ ᴏɴ', callback_data='metadata_1'), 
      InlineKeyboardButton('✅', callback_data='metadata_1')],
@@ -93,10 +111,10 @@ async def query_metadata(bot: Client, query: CallbackQuery):
             )
 
     elif data == "custom_metadata":
-        await query.message.delete()
-        try:
-            user_metadata = await madflixbotz.get_metadata_code(query.from_user.id)
-            metadata_message = f"""
+    await query.message.delete()
+    try:
+        user_metadata = await madflixbotz.get_metadata_code(query.from_user.id)
+        metadata_message = f"""
 <b>--Metadata Settings:--</b>
 
 ➜ <b>ᴄᴜʀʀᴇɴᴛ ᴍᴇᴛᴀᴅᴀᴛᴀ:</b> {user_metadata}
@@ -105,22 +123,17 @@ async def query_metadata(bot: Client, query: CallbackQuery):
 
 <b>➲ Send metadata title. Timeout: 60 sec</b>
 """
-            try:
-                metadata = await ask(
-                    bot,
-                    query.from_user.id,
-                    metadata_message,
-                    timeout=60,
-                    filters=filters.text
-                )
-            except TimeoutError:
-                await query.message.reply_text(
-                    "⚠️ Error!!\n\nRequest timed out.\nRestart by using /metadata",
-                    reply_to_message_id=query.message.id,
-                )
-                return
-
-            try:
+        try:
+            # Note the change here - we're passing filters.text as is
+            metadata = await ask(
+                bot,
+                query.from_user.id,
+                metadata_message,
+                timeout=60,
+                filters=filters.text
+            )
+            
+            if metadata:
                 ms = await query.message.reply_text(
                     "**Wait A Second...**",
                     reply_to_message_id=metadata.id
@@ -130,8 +143,17 @@ async def query_metadata(bot: Client, query: CallbackQuery):
                     metadata_code=metadata.text
                 )
                 await ms.edit("**Your Metadata Code Set Successfully ✅**")
-            except Exception as e:
-                await query.message.reply_text(f"**Error Occurred:** {str(e)}")
+            else:
+                await query.message.reply_text(
+                    "No metadata received. Please try again using /metadata"
+                )
                 
-        except Exception as e:
-            await query.message.reply_text(f"**Error Occurred:** {str(e)}")
+        except TimeoutError:
+            await query.message.reply_text(
+                "⚠️ Error!!\n\nRequest timed out.\nRestart by using /metadata",
+                reply_to_message_id=query.message.id,
+            )
+            return
+            
+    except Exception as e:
+        await query.message.reply_text(f"**Error Occurred:** {str(e)}")
