@@ -11,19 +11,25 @@ class Database:
 
     def new_user(self, id):
         return dict(
-            _id=int(id),                                   
+            _id=int(id),
             file_id=None,
             caption=None,
             format_template=None,
-            bool_metadata=False,     # Changed to match metadata.py
-            metadata_code="Release Name"  # Default metadata code
+            bool_metadata="Off",  # Default to "Off" to match metadata.py
+            metadata_code="Release Name",
+            title=None,
+            author=None,
+            artist=None,
+            video=None,
+            audio=None,
+            subtitle=None
         )
 
     async def add_user(self, b, m):
         u = m.from_user
         if not await self.is_user_exist(u.id):
             user = self.new_user(u.id)
-            await self.col.insert_one(user)            
+            await self.col.insert_one(user)
             await send_log(b, u)
 
     async def is_user_exist(self, id):
@@ -40,7 +46,7 @@ class Database:
 
     async def delete_user(self, user_id):
         await self.col.delete_many({'_id': int(user_id)})
-    
+
     async def set_thumbnail(self, id, file_id):
         await self.col.update_one({'_id': int(id)}, {'$set': {'file_id': file_id}})
 
@@ -69,23 +75,23 @@ class Database:
         user = await self.col.find_one({'_id': int(id)})
         return user.get('media_type', None)
 
-    # Metadata methods exactly matching metadata.py requirements
-    async def set_metadata(self, user_id, bool_meta):
-        """Set metadata enabled/disabled status for a user"""
+    # Metadata functions updated to match metadata.py
+    async def set_metadata(self, user_id, status):
+        """Set metadata On or Off for a user"""
         await self.col.update_one(
             {'_id': int(user_id)},
-            {'$set': {'bool_metadata': bool_meta}},  # Changed to bool_metadata to match usage
+            {'$set': {'bool_metadata': status}},  # Store as "On"/"Off"
             upsert=True
         )
 
     async def get_metadata(self, user_id):
-        """Get metadata status for a user"""
+        """Get metadata status for a user (On/Off)"""
         user = await self.col.find_one({'_id': int(user_id)})
         if not user:
             user = self.new_user(user_id)
             await self.col.insert_one(user)
-            return False
-        return user.get('bool_metadata', False)  # Changed to bool_metadata to match usage
+            return "Off"  # Default to "Off"
+        return user.get('bool_metadata', "Off")
 
     async def set_metadata_code(self, user_id, metadata_code):
         """Set custom metadata code for a user"""
@@ -104,9 +110,47 @@ class Database:
             return "Release Name"
         return user.get('metadata_code', "Release Name")
 
-madflixbotz = Database(Config.DB_URL, Config.DB_NAME)
+    # Additional metadata fields (Title, Author, Artist, Video, Audio, Subtitle)
+    async def set_title(self, user_id, title):
+        await self.col.update_one({'_id': int(user_id)}, {'$set': {'title': title}}, upsert=True)
 
-# Jishu Developer 
-# Don't Remove Credit 🥺
-# Telegram Channel @Madflix_Bots
-# Developer @JishuDeveloper
+    async def get_title(self, user_id):
+        user = await self.col.find_one({'_id': int(user_id)})
+        return user.get('title', None)
+
+    async def set_author(self, user_id, author):
+        await self.col.update_one({'_id': int(user_id)}, {'$set': {'author': author}}, upsert=True)
+
+    async def get_author(self, user_id):
+        user = await self.col.find_one({'_id': int(user_id)})
+        return user.get('author', None)
+
+    async def set_artist(self, user_id, artist):
+        await self.col.update_one({'_id': int(user_id)}, {'$set': {'artist': artist}}, upsert=True)
+
+    async def get_artist(self, user_id):
+        user = await self.col.find_one({'_id': int(user_id)})
+        return user.get('artist', None)
+
+    async def set_video(self, user_id, video):
+        await self.col.update_one({'_id': int(user_id)}, {'$set': {'video': video}}, upsert=True)
+
+    async def get_video(self, user_id):
+        user = await self.col.find_one({'_id': int(user_id)})
+        return user.get('video', None)
+
+    async def set_audio(self, user_id, audio):
+        await self.col.update_one({'_id': int(user_id)}, {'$set': {'audio': audio}}, upsert=True)
+
+    async def get_audio(self, user_id):
+        user = await self.col.find_one({'_id': int(user_id)})
+        return user.get('audio', None)
+
+    async def set_subtitle(self, user_id, subtitle):
+        await self.col.update_one({'_id': int(user_id)}, {'$set': {'subtitle': subtitle}}, upsert=True)
+
+    async def get_subtitle(self, user_id):
+        user = await self.col.find_one({'_id': int(user_id)})
+        return user.get('subtitle', None)
+
+madflixbotz = Database(Config.DB_URL, Config.DB_NAME)
