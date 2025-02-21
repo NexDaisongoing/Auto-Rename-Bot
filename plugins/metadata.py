@@ -1,164 +1,207 @@
+import logging
+from helper.database import codeflixbots as db
 from pyrogram import Client, filters
-from pyrogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
-from pyrogram.handlers import MessageHandler
-from helper.database import madflixbotz
-from config import Txt, Config
-import asyncio
+from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
+from config import Txt
 
-# Custom message collector class to replace pyromod's ask functionality
-class MessageCollector:
-    def __init__(self, client, chat_id, timeout):
-        self.client = client
-        self.chat_id = chat_id
-        self.timeout = timeout
-        self.response = None
-        self._response_event = asyncio.Event()
+# Set up logging to log exceptions and errors.
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-    async def handler(self, client, message):
-        self.response = message
-        self._response_event.set()
 
-    async def wait_for_response(self):
-        try:
-            await asyncio.wait_for(self._response_event.wait(), timeout=self.timeout)
-            return self.response
-        except asyncio.TimeoutError:
-            raise TimeoutError("Request timed out")
-
-async def ask(client, chat_id, text, timeout=60, filters=None):
-    """
-    Custom ask function that properly handles filters
-    """
-    # Create a base filter for the chat
-    base_filter = filters.chat(chat_id)
-    
-    # If additional filters are provided, combine them with the chat filter
-    if filters:
-        final_filter = base_filter & filters
-    else:
-        final_filter = base_filter
-
-    collector = MessageCollector(client, chat_id, timeout)
-    
-    # Add the handler with the final filter
-    handler = client.add_handler(
-        MessageHandler(
-            collector.handler,
-            filters=final_filter
-        )
-    )
-
-    await client.send_message(
-        chat_id,
-        text,
-        disable_web_page_preview=True
-    )
-
+@Client.on_message(filters.command("metadata"))
+async def metadata(client, message):
     try:
-        response = await collector.wait_for_response()
-        return response
-    finally:
-        client.remove_handler(handler)
+        user_id = message.from_user.id
 
-# Inline Keyboard Buttons
-ON = [
-    [InlineKeyboardButton('ᴍᴇᴛᴀᴅᴀᴛᴀ ᴏɴ', callback_data='metadata_1'), 
-     InlineKeyboardButton('✅', callback_data='metadata_1')],
-    [InlineKeyboardButton('Sᴇᴛ Cᴜsᴛᴏᴍ Mᴇᴛᴀᴅᴀᴛᴀ', callback_data='custom_metadata')]
-]
+        # Fetch user metadata from the database
+        current = await db.get_metadata(user_id)
+        title = await db.get_title(user_id)
+        author = await db.get_author(user_id)
+        artist = await db.get_artist(user_id)
+        video = await db.get_video(user_id)
+        audio = await db.get_audio(user_id)
+        subtitle = await db.get_subtitle(user_id)
 
-OFF = [
-    [InlineKeyboardButton('ᴍᴇᴛᴀᴅᴀᴛᴀ ᴏғғ', callback_data='metadata_0'), 
-     InlineKeyboardButton('❌', callback_data='metadata_0')],
-    [InlineKeyboardButton('Sᴇᴛ Cᴜsᴛᴏᴍ Mᴇᴛᴀᴅᴀᴛᴀ', callback_data='custom_metadata')]
-]
+        # Display the current metadata
+        text = f"""
+**㊋ Yᴏᴜʀ Mᴇᴛᴀᴅᴀᴛᴀ ɪꜱ ᴄᴜʀʀᴇɴᴛʟʏ: {current}**
 
-@Client.on_message(filters.private & filters.command("metadata"))
-async def handle_metadata(bot: Client, message: Message):
-    ms = await message.reply_text("Wait A Second...", reply_to_message_id=message.id)
-    bool_metadata = await madflixbotz.get_metadata(message.from_user.id)
-    user_metadata = await madflixbotz.get_metadata_code(message.from_user.id)
-    await ms.delete()
+**◈ Tɪᴛʟᴇ ▹** `{title if title else 'Nᴏᴛ ꜰᴏᴜɴᴅ'}`
+**◈ Aᴜᴛʜᴏʀ ▹** `{author if author else 'Nᴏᴛ ꜰᴏᴜɴᴅ'}`
+**◈ Aʀᴛɪꜱᴛ ▹** `{artist if artist else 'Nᴏᴛ ꜰᴏᴜɴᴅ'}`
+**◈ Aᴜᴅɪᴏ ▹** `{audio if audio else 'Nᴏᴛ ꜰᴏᴜɴᴅ'}`
+**◈ Sᴜʙᴛɪᴛʟᴇ ▹** `{subtitle if subtitle else 'Nᴏᴛ ꜰᴏᴜɴᴅ'}`
+**◈ Vɪᴅᴇᴏ ▹** `{video if video else 'Nᴏᴛ ꜰᴏᴜɴᴅ'}`
+        """
 
-    if bool_metadata:
-        await message.reply_text(
-            f"<b>ʏᴏᴜʀ ᴄᴜʀʀᴇɴᴛ ᴍᴇᴛᴀᴅᴀᴛᴀ:</b>\n\n➜ `{user_metadata}` ",
-            reply_markup=InlineKeyboardMarkup(ON),
-        )
-    else:
-        await message.reply_text(
-            f"<b>ʏᴏᴜʀ ᴄᴜʀʀᴇɴᴛ ᴍᴇᴛᴀᴅᴀᴛᴀ:</b>\n\n➜ `{user_metadata}` ",
-            reply_markup=InlineKeyboardMarkup(OFF),
-        )
+        # Inline buttons to toggle metadata
+        buttons = [
+            [
+                InlineKeyboardButton(f"On{' ✅' if current == 'On' else ''}", callback_data='on_metadata'),
+                InlineKeyboardButton(f"Off{' ✅' if current == 'Off' else ''}", callback_data='off_metadata')
+            ],
+            [
+                InlineKeyboardButton("How to Set Metadata", callback_data="metainfo")
+            ]
+        ]
+        keyboard = InlineKeyboardMarkup(buttons)
 
-@Client.on_callback_query(filters.regex(r".?(custom_metadata|metadata).?"))
-async def query_metadata(bot: Client, query: CallbackQuery):
-    data = query.data
+        await message.reply_text(text=text, reply_markup=keyboard, disable_web_page_preview=True)
+    except Exception as e:
+        logger.exception("Error in metadata command:")
+        await message.reply_text("An error occurred while fetching your metadata. Please try again later.")
 
-    if data.startswith("metadata_"):
-        _bool = data.split("_")[1] == '1'
-        user_metadata = await madflixbotz.get_metadata_code(query.from_user.id)
 
-        if _bool:
-            await madflixbotz.set_metadata(query.from_user.id, bool_meta=False)
-            await query.message.edit(
-                f"<b>ʏᴏᴜʀ ᴄᴜʀʀᴇɴᴛ ᴍᴇᴛᴀᴅᴀᴛᴀ:</b>\n\n➜ `{user_metadata}` ",
-                reply_markup=InlineKeyboardMarkup(OFF),
+@Client.on_callback_query(filters.regex(r"on_metadata|off_metadata|metainfo"))
+async def metadata_callback(client, query: CallbackQuery):
+    try:
+        user_id = query.from_user.id
+        data = query.data
+
+        if data == "on_metadata":
+            await db.set_metadata(user_id, "On")
+        elif data == "off_metadata":
+            await db.set_metadata(user_id, "Off")
+        elif data == "metainfo":
+            await query.message.edit_text(
+                text=Txt.META_TXT,
+                disable_web_page_preview=True,
+                reply_markup=InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("Hᴏᴍᴇ", callback_data="start"),
+                        InlineKeyboardButton("Bᴀᴄᴋ", callback_data="commands")
+                    ]
+                ])
             )
-        else:
-            await madflixbotz.set_metadata(query.from_user.id, bool_meta=True)
-            await query.message.edit(
-                f"<b>ʏᴏᴜʀ ᴄᴜʀʀᴇɴᴛ ᴍᴇᴛᴀᴅᴀᴛᴀ:</b>\n\n➜ `{user_metadata}` ",
-                reply_markup=InlineKeyboardMarkup(ON),
-            )
+            return
 
-    elif data == "custom_metadata":  # Correct indentation here
-        await query.message.delete()
-        try:
-            user_metadata = await madflixbotz.get_metadata_code(query.from_user.id)
-            metadata_message = f"""
-<b>--Metadata Settings:--</b>
+        # Fetch updated metadata after toggling
+        current = await db.get_metadata(user_id)
+        title = await db.get_title(user_id)
+        author = await db.get_author(user_id)
+        artist = await db.get_artist(user_id)
+        video = await db.get_video(user_id)
+        audio = await db.get_audio(user_id)
+        subtitle = await db.get_subtitle(user_id)
 
-➜ <b>ᴄᴜʀʀᴇɴᴛ ᴍᴇᴛᴀᴅᴀᴛᴀ:</b> {user_metadata}
+        # Updated metadata message after toggle
+        text = f"""
+**㊋ Yᴏᴜʀ Mᴇᴛᴀᴅᴀᴛᴀ ɪꜱ ᴄᴜʀʀᴇɴᴛʟʏ: {current}**
 
-<b>Description</b> : Metadata will change MKV video files including all audio, streams, and subtitle titles.
+**◈ Tɪᴛʟᴇ ▹** `{title if title else 'Nᴏᴛ ꜰᴏᴜɴᴅ'}`
+**◈ Aᴜᴛʜᴏʀ ▹** `{author if author else 'Nᴏᴛ ꜰᴏᴜɴᴅ'}`
+**◈ Aʀᴛɪꜱᴛ ▹** `{artist if artist else 'Nᴏᴛ ꜰᴏᴜɴᴅ'}`
+**◈ Aᴜᴅɪᴏ ▹** `{audio if audio else 'Nᴏᴛ ꜰᴏᴜɴᴅ'}`
+**◈ Sᴜʙᴛɪᴛʟᴇ ▹** `{subtitle if subtitle else 'Nᴏᴛ ꜰᴏᴜɴᴅ'}`
+**◈ Vɪᴅᴇᴏ ▹** `{video if video else 'Nᴏᴛ ꜰᴏᴜɴᴅ'}`
+        """
 
-<b>➲ Send metadata title. Timeout: 60 sec</b>
-"""
-            try:
-                metadata = await ask(
-                    bot,
-                    query.from_user.id,
-                    metadata_message,
-                    timeout=60,
-                    filters=filters.text
-                )
-                
-                if metadata:
-                    ms = await bot.send_message(
-                        query.from_user.id,
-                        "**Wait A Second...**"
-                    )
-                    await madflixbotz.set_metadata_code(
-                        query.from_user.id,
-                        metadata_code=metadata.text
-                    )
-                    await ms.edit("**Your Metadata Code Set Successfully ✅**")
-                else:
-                    await bot.send_message(
-                        query.from_user.id,
-                        "No metadata received. Please try again using /metadata"
-                    )
-                    
-            except TimeoutError:
-                await bot.send_message(
-                    query.from_user.id,
-                    "⚠️ Error!!\n\nRequest timed out.\nRestart by using /metadata"
-                )
-                return
-                
-        except Exception as e:
-            await bot.send_message(
-                query.from_user.id,
-                f"**Error Occurred:** {str(e)}"
+        # Update inline buttons
+        buttons = [
+            [
+                InlineKeyboardButton(f"On{' ✅' if current == 'On' else ''}", callback_data='on_metadata'),
+                InlineKeyboardButton(f"Off{' ✅' if current == 'Off' else ''}", callback_data='off_metadata')
+            ],
+            [
+                InlineKeyboardButton("How to Set Metadata", callback_data="metainfo")
+            ]
+        ]
+        await query.message.edit_text(
+            text=text,
+            reply_markup=InlineKeyboardMarkup(buttons),
+            disable_web_page_preview=True
         )
+    except Exception as e:
+        logger.exception("Error in metadata callback:")
+        await query.answer("An error occurred while processing your request.", show_alert=True)
+
+
+@Client.on_message(filters.private & filters.command('settitle'))
+async def title(client, message):
+    try:
+        if len(message.command) == 1:
+            return await message.reply_text(
+                "**Gɪᴠᴇ Tʜᴇ Tɪᴛʟᴇ\n\nExᴀᴍᴩʟᴇ: /settitle Encoded By @Animes_Cruise**"
+            )
+        title_text = message.text.split(" ", 1)[1]
+        await db.set_title(message.from_user.id, title=title_text)
+        await message.reply_text("**✅ Tɪᴛʟᴇ Sᴀᴠᴇᴅ**")
+    except Exception as e:
+        logger.exception("Error in settitle command:")
+        await message.reply_text("An error occurred while setting your title. Please try again later.")
+
+
+@Client.on_message(filters.private & filters.command('setauthor'))
+async def author(client, message):
+    try:
+        if len(message.command) == 1:
+            return await message.reply_text(
+                "**Gɪᴠᴇ Tʜᴇ Aᴜᴛʜᴏʀ\n\nExᴀᴍᴩʟᴇ: /setauthor @Animes_Cruise**"
+            )
+        author_text = message.text.split(" ", 1)[1]
+        await db.set_author(message.from_user.id, author=author_text)
+        await message.reply_text("**✅ Aᴜᴛʜᴏʀ Sᴀᴠᴇᴅ**")
+    except Exception as e:
+        logger.exception("Error in setauthor command:")
+        await message.reply_text("An error occurred while setting your author. Please try again later.")
+
+
+@Client.on_message(filters.private & filters.command('setartist'))
+async def artist(client, message):
+    try:
+        if len(message.command) == 1:
+            return await message.reply_text(
+                "**Gɪᴠᴇ Tʜᴇ Aʀᴛɪꜱᴛ\n\nExᴀᴍᴩʟᴇ: /setartist @Animes_Cruise**"
+            )
+        artist_text = message.text.split(" ", 1)[1]
+        await db.set_artist(message.from_user.id, artist=artist_text)
+        await message.reply_text("**✅ Aʀᴛɪꜱᴛ Sᴀᴠᴇᴅ**")
+    except Exception as e:
+        logger.exception("Error in setartist command:")
+        await message.reply_text("An error occurred while setting your artist. Please try again later.")
+
+
+@Client.on_message(filters.private & filters.command('setaudio'))
+async def audio(client, message):
+    try:
+        if len(message.command) == 1:
+            return await message.reply_text(
+                "**Gɪᴠᴇ Tʜᴇ Aᴜᴅɪᴏ Tɪᴛʟᴇ\n\nExᴀᴍᴩʟᴇ: /setaudio @Animes_Cruise**"
+            )
+        audio_text = message.text.split(" ", 1)[1]
+        await db.set_audio(message.from_user.id, audio=audio_text)
+        await message.reply_text("**✅ Aᴜᴅɪᴏ Sᴀᴠᴇᴅ**")
+    except Exception as e:
+        logger.exception("Error in setaudio command:")
+        await message.reply_text("An error occurred while setting your audio. Please try again later.")
+
+
+@Client.on_message(filters.private & filters.command('setsubtitle'))
+async def subtitle(client, message):
+    try:
+        if len(message.command) == 1:
+            return await message.reply_text(
+                "**Gɪᴠᴇ Tʜᴇ Sᴜʙᴛɪᴛʟᴇ Tɪᴛʟᴇ\n\nExᴀᴍᴩʟᴇ: /setsubtitle @Animes_Cruise**"
+            )
+        subtitle_text = message.text.split(" ", 1)[1]
+        await db.set_subtitle(message.from_user.id, subtitle=subtitle_text)
+        await message.reply_text("**✅ Sᴜʙᴛɪᴛʟᴇ Sᴀᴠᴇᴅ**")
+    except Exception as e:
+        logger.exception("Error in setsubtitle command:")
+        await message.reply_text("An error occurred while setting your subtitle. Please try again later.")
+
+
+@Client.on_message(filters.private & filters.command('setvideo'))
+async def video(client, message):
+    try:
+        if len(message.command) == 1:
+            return await message.reply_text(
+                "**Gɪᴠᴇ Tʜᴇ Vɪᴅᴇᴏ Tɪᴛʟᴇ\n\nExᴀᴍᴩʟᴇ: /setvideo Encoded by @Animes_Cruise**"
+            )
+        video_text = message.text.split(" ", 1)[1]
+        await db.set_video(message.from_user.id, video=video_text)
+        await message.reply_text("**✅ Vɪᴅᴇᴏ Sᴀᴠᴇᴅ**")
+    except Exception as e:
+        logger.exception("Error in setvideo command:")
+        await message.reply_text("An error occurred while setting your video. Please try again later.")
