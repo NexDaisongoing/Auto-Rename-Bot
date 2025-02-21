@@ -5,7 +5,7 @@ from pyrogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
 )
-from helper.database import codeflixbots
+from helper.database import madflixbots
 from pyromod.exceptions import ListenerTimeout
 from config import Txt, Config
 
