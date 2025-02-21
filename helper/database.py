@@ -14,7 +14,9 @@ class Database:
             _id=int(id),                                   
             file_id=None,
             caption=None,
-            format_template=None  # Add this line for the format template
+            format_template=None,
+            bool_metadata=False,     # Changed to match metadata.py
+            metadata_code="Release Name"  # Default metadata code
         )
 
     async def add_user(self, b, m):
@@ -67,11 +69,42 @@ class Database:
         user = await self.col.find_one({'_id': int(id)})
         return user.get('media_type', None)
 
+    # Metadata methods exactly matching metadata.py requirements
+    async def set_metadata(self, user_id, bool_meta):
+        """Set metadata enabled/disabled status for a user"""
+        await self.col.update_one(
+            {'_id': int(user_id)},
+            {'$set': {'bool_metadata': bool_meta}},  # Changed to bool_metadata to match usage
+            upsert=True
+        )
 
+    async def get_metadata(self, user_id):
+        """Get metadata status for a user"""
+        user = await self.col.find_one({'_id': int(user_id)})
+        if not user:
+            user = self.new_user(user_id)
+            await self.col.insert_one(user)
+            return False
+        return user.get('bool_metadata', False)  # Changed to bool_metadata to match usage
+
+    async def set_metadata_code(self, user_id, metadata_code):
+        """Set custom metadata code for a user"""
+        await self.col.update_one(
+            {'_id': int(user_id)},
+            {'$set': {'metadata_code': metadata_code}},
+            upsert=True
+        )
+
+    async def get_metadata_code(self, user_id):
+        """Get custom metadata code for a user"""
+        user = await self.col.find_one({'_id': int(user_id)})
+        if not user:
+            user = self.new_user(user_id)
+            await self.col.insert_one(user)
+            return "Release Name"
+        return user.get('metadata_code', "Release Name")
 
 madflixbotz = Database(Config.DB_URL, Config.DB_NAME)
-        
-
 
 # Jishu Developer 
 # Don't Remove Credit 🥺
