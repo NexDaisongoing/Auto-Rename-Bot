@@ -26,32 +26,40 @@ class MessageCollector:
             raise TimeoutError("Request timed out")
 
 async def ask(client, chat_id, text, timeout=60, filters=None):
+    # Create a filter that only accepts messages from the specified chat
+    chat_filter = filters.chat(chat_id) if filters else None
+    message_filter = filters & chat_filter if filters else chat_filter
+
     collector = MessageCollector(client, chat_id, timeout)
-    handler = client.add_handler(MessageHandler(collector.handler, filters=filters & filters.chat(chat_id)))
-    
+    handler = client.add_handler(MessageHandler(collector.handler, filters=message_filter))
+
     await client.send_message(chat_id, text, disable_web_page_preview=True)
-    
+
     try:
         response = await collector.wait_for_response()
         return response
     finally:
         client.remove_handler(handler)
 
-ON = [[InlineKeyboardButton('ᴍᴇᴛᴀᴅᴀᴛᴀ ᴏɴ', callback_data='metadata_1'),
-       InlineKeyboardButton('✅', callback_data='metadata_1')],
-      [InlineKeyboardButton('Sᴇᴛ Cᴜsᴛᴏᴍ Mᴇᴛᴀᴅᴀᴛᴀ', callback_data='custom_metadata')]]
+ON = [
+    [InlineKeyboardButton('ᴍᴇᴛᴀᴅᴀᴛᴀ ᴏɴ', callback_data='metadata_1'), 
+     InlineKeyboardButton('✅', callback_data='metadata_1')],
+    [InlineKeyboardButton('Sᴇᴛ Cᴜsᴛᴏᴍ Mᴇᴛᴀᴅᴀᴛᴀ', callback_data='custom_metadata')]
+]
 
-OFF = [[InlineKeyboardButton('ᴍᴇᴛᴀᴅᴀᴛᴀ ᴏғғ', callback_data='metadata_0'),
-        InlineKeyboardButton('❌', callback_data='metadata_0')],
-       [InlineKeyboardButton('Sᴇᴛ Cᴜsᴛᴏᴍ Mᴇᴛᴀᴅᴀᴛᴀ', callback_data='custom_metadata')]]
+OFF = [
+    [InlineKeyboardButton('ᴍᴇᴛᴀᴅᴀᴛᴀ ᴏғғ', callback_data='metadata_0'), 
+     InlineKeyboardButton('❌', callback_data='metadata_0')],
+    [InlineKeyboardButton('Sᴇᴛ Cᴜsᴛᴏᴍ Mᴇᴛᴀᴅᴀᴛᴀ', callback_data='custom_metadata')]
+]
 
 @Client.on_message(filters.private & filters.command("metadata"))
 async def handle_metadata(bot: Client, message: Message):
-    ms = await message.reply_text("**Wait A Second...**", reply_to_message_id=message.id)
+    ms = await message.reply_text("Wait A Second...", reply_to_message_id=message.id)
     bool_metadata = await madflixbotz.get_metadata(message.from_user.id)
     user_metadata = await madflixbotz.get_metadata_code(message.from_user.id)
     await ms.delete()
-    
+
     if bool_metadata:
         await message.reply_text(
             f"<b>ʏᴏᴜʀ ᴄᴜʀʀᴇɴᴛ ᴍᴇᴛᴀᴅᴀᴛᴀ:</b>\n\n➜ `{user_metadata}` ",
@@ -63,7 +71,7 @@ async def handle_metadata(bot: Client, message: Message):
             reply_markup=InlineKeyboardMarkup(OFF),
         )
 
-@Client.on_callback_query(filters.regex(".*?(custom_metadata|metadata).*?"))
+@Client.on_callback_query(filters.regex(r".?(custom_metadata|metadata).?"))
 async def query_metadata(bot: Client, query: CallbackQuery):
     data = query.data
 
@@ -91,7 +99,7 @@ async def query_metadata(bot: Client, query: CallbackQuery):
             metadata_message = f"""
 <b>--Metadata Settings:--</b>
 
-➜ <b>ᴄᴜʀʀᴇɴᴛ ᴍᴇᴛᴀᴅᴀᴛᴀ:</b> `{user_metadata}`
+➜ <b>ᴄᴜʀʀᴇɴᴛ ᴍᴇᴛᴀᴅᴀᴛᴀ:</b> {user_metadata}
 
 <b>Description</b> : Metadata will change MKV video files including all audio, streams, and subtitle titles.
 
@@ -107,17 +115,19 @@ async def query_metadata(bot: Client, query: CallbackQuery):
                 )
             except TimeoutError:
                 await query.message.reply_text(
-                    "⚠️ Error!!\n\n**Request timed out.**\nRestart by using /metadata",
+                    "⚠️ Error!!\n\nRequest timed out.\nRestart by using /metadata",
                     reply_to_message_id=query.message.id,
                 )
                 return
 
             try:
                 ms = await query.message.reply_text(
-                    "**Wait A Second...**", reply_to_message_id=metadata.id
+                    "**Wait A Second...**",
+                    reply_to_message_id=metadata.id
                 )
                 await madflixbotz.set_metadata_code(
-                    query.from_user.id, metadata_code=metadata.text
+                    query.from_user.id,
+                    metadata_code=metadata.text
                 )
                 await ms.edit("**Your Metadata Code Set Successfully ✅**")
             except Exception as e:
