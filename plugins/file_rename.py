@@ -12,6 +12,8 @@ import os
 import shutil
 import time
 import re
+import asyncio
+import imageio_ffmpeg as ffmpeg  # Import imageio_ffmpeg to get FFmpeg executable
 
 renaming_operations = {}
 
@@ -27,7 +29,7 @@ pattern3_2 = re.compile(r'(?:\s*-\s*(\d+)\s*)')
 pattern4 = re.compile(r'S(\d+)[^\d]*(\d+)', re.IGNORECASE)
 # Pattern X: Standalone Episode Number
 patternX = re.compile(r'(\d+)')
-#QUALITY PATTERNS 
+# QUALITY PATTERNS 
 # Pattern 5: 3-4 digits before 'p' as quality
 pattern5 = re.compile(r'\b(?:.*?(\d{3,4}[^\dp]*p).*?|.*?(\d{3,4}p))\b', re.IGNORECASE)
 # Pattern 6: Find 4k in brackets or parentheses
@@ -165,9 +167,7 @@ async def auto_rename_files(client, message):
 
     print(f"Original File Name: {file_name}")
     
-    
-
-# Check whether the file is already being renamed or has been renamed recently
+    # Check whether the file is already being renamed or has been renamed recently
     if file_id in renaming_operations:
         elapsed_time = (datetime.now() - renaming_operations[file_id]).seconds
         if elapsed_time < 10:
@@ -207,7 +207,12 @@ async def auto_rename_files(client, message):
 
         download_msg = await message.reply_text(text="Trying To Download.....")
         try:
-            path = await client.download_media(message=file, file_name=file_path, progress=progress_for_pyrogram, progress_args=("Download Started....", download_msg, time.time()))
+            path = await client.download_media(
+                message=file, 
+                file_name=file_path, 
+                progress=progress_for_pyrogram, 
+                progress_args=("Download Started....", download_msg, time.time())
+            )
         except Exception as e:
             # Mark the file as ignored
             del renaming_operations[file_id]
@@ -225,7 +230,8 @@ async def auto_rename_files(client, message):
 
         try:
             # Prepare metadata command
-            ffmpeg_cmd = shutil.which('ffmpeg')
+            # Use imageio_ffmpeg to obtain the FFmpeg executable
+            ffmpeg_cmd = ffmpeg.get_ffmpeg_exe()
             if not ffmpeg_cmd:
                 raise FileNotFoundError("FFmpeg not found. Please install FFmpeg.")
 
@@ -271,11 +277,13 @@ async def auto_rename_files(client, message):
         except Exception as e:
             await upload_msg.edit(f"**Unexpected Error:** {str(e)}")
             return
+
         ph_path = None
         c_caption = await madflixbotz.get_caption(message.chat.id)
         c_thumb = await madflixbotz.get_thumbnail(message.chat.id)
 
-        caption = c_caption.format(filename=new_file_name, filesize=humanbytes(message.document.file_size), duration=convert(duration)) if c_caption else f"**{new_file_name}**"
+        caption = (c_caption.format(filename=new_file_name, filesize=humanbytes(message.document.file_size), duration=convert(duration))
+                   if c_caption else f"**{new_file_name}**")
 
         if c_thumb:
             ph_path = await client.download_media(c_thumb)
@@ -286,13 +294,11 @@ async def auto_rename_files(client, message):
         if ph_path:
             Image.open(ph_path).convert("RGB").save(ph_path)
             img = Image.open(ph_path)
-            img.resize((320, 320))
+            img = img.resize((320, 320))
             img.save(ph_path, "JPEG")    
         
-
         try:
-            type = media_type  # Use 'media_type' variable instead
-            if type == "document":
+            if media_type == "document":
                 await client.send_document(
                     message.chat.id,
                     document=file_path,
@@ -301,7 +307,7 @@ async def auto_rename_files(client, message):
                     progress=progress_for_pyrogram,
                     progress_args=("Upload Started.....", upload_msg, time.time())
                 )
-            elif type == "video":
+            elif media_type == "video":
                 await client.send_video(
                     message.chat.id,
                     video=file_path,
@@ -311,7 +317,7 @@ async def auto_rename_files(client, message):
                     progress=progress_for_pyrogram,
                     progress_args=("Upload Started.....", upload_msg, time.time())
                 )
-            elif type == "audio":
+            elif media_type == "audio":
                 await client.send_audio(
                     message.chat.id,
                     audio=file_path,
@@ -325,7 +331,6 @@ async def auto_rename_files(client, message):
             os.remove(file_path)
             if ph_path:
                 os.remove(ph_path)
-            # Mark the file as ignored
             return await upload_msg.edit(f"Error: {e}")
 
         await download_msg.delete() 
@@ -333,11 +338,8 @@ async def auto_rename_files(client, message):
         if ph_path:
             os.remove(ph_path)
 
-# Remove the entry from renaming_operations after successful renaming
+        # Remove the entry from renaming_operations after successful renaming
         del renaming_operations[file_id]
-
-
-
 
 # Jishu Developer 
 # Don't Remove Credit 🥺
