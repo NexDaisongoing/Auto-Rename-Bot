@@ -7,5 +7,4 @@ Pillow
 aiohttp
 pytz
 psutil
-shutil
 ffmpeg
