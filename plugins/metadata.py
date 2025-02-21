@@ -110,7 +110,7 @@ async def query_metadata(bot: Client, query: CallbackQuery):
                 reply_markup=InlineKeyboardMarkup(ON),
             )
 
-    elif data == "custom_metadata":
+ elif data == "custom_metadata":
     await query.message.delete()
     try:
         user_metadata = await madflixbotz.get_metadata_code(query.from_user.id)
