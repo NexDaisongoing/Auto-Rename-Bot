@@ -59,6 +59,8 @@ async def ask(client, chat_id, text, timeout=60, filters=None):
         return response
     finally:
         client.remove_handler(handler)
+
+# Inline Keyboard Buttons
 ON = [
     [InlineKeyboardButton('ᴍᴇᴛᴀᴅᴀᴛᴀ ᴏɴ', callback_data='metadata_1'), 
      InlineKeyboardButton('✅', callback_data='metadata_1')],
@@ -110,11 +112,11 @@ async def query_metadata(bot: Client, query: CallbackQuery):
                 reply_markup=InlineKeyboardMarkup(ON),
             )
 
-     elif data == "custom_metadata":
-       await query.message.delete()
-       try:
-        user_metadata = await madflixbotz.get_metadata_code(query.from_user.id)
-        metadata_message = f"""
+    elif data == "custom_metadata":  # Correct indentation here
+        await query.message.delete()
+        try:
+            user_metadata = await madflixbotz.get_metadata_code(query.from_user.id)
+            metadata_message = f"""
 <b>--Metadata Settings:--</b>
 
 ➜ <b>ᴄᴜʀʀᴇɴᴛ ᴍᴇᴛᴀᴅᴀᴛᴀ:</b> {user_metadata}
@@ -123,37 +125,40 @@ async def query_metadata(bot: Client, query: CallbackQuery):
 
 <b>➲ Send metadata title. Timeout: 60 sec</b>
 """
-        try:
-            # Note the change here - we're passing filters.text as is
-            metadata = await ask(
-                bot,
-                query.from_user.id,
-                metadata_message,
-                timeout=60,
-                filters=filters.text
-            )
-            
-            if metadata:
-                ms = await query.message.reply_text(
-                    "**Wait A Second...**",
-                    reply_to_message_id=metadata.id
-                )
-                await madflixbotz.set_metadata_code(
+            try:
+                metadata = await ask(
+                    bot,
                     query.from_user.id,
-                    metadata_code=metadata.text
-                )
-                await ms.edit("**Your Metadata Code Set Successfully ✅**")
-            else:
-                await query.message.reply_text(
-                    "No metadata received. Please try again using /metadata"
+                    metadata_message,
+                    timeout=60,
+                    filters=filters.text
                 )
                 
-        except TimeoutError:
-            await query.message.reply_text(
-                "⚠️ Error!!\n\nRequest timed out.\nRestart by using /metadata",
-                reply_to_message_id=query.message.id,
-            )
-            return
-            
-    except Exception as e:
-        await query.message.reply_text(f"**Error Occurred:** {str(e)}")
+                if metadata:
+                    ms = await bot.send_message(
+                        query.from_user.id,
+                        "**Wait A Second...**"
+                    )
+                    await madflixbotz.set_metadata_code(
+                        query.from_user.id,
+                        metadata_code=metadata.text
+                    )
+                    await ms.edit("**Your Metadata Code Set Successfully ✅**")
+                else:
+                    await bot.send_message(
+                        query.from_user.id,
+                        "No metadata received. Please try again using /metadata"
+                    )
+                    
+            except TimeoutError:
+                await bot.send_message(
+                    query.from_user.id,
+                    "⚠️ Error!!\n\nRequest timed out.\nRestart by using /metadata"
+                )
+                return
+                
+        except Exception as e:
+            await bot.send_message(
+                query.from_user.id,
+                f"**Error Occurred:** {str(e)}"
+        )
