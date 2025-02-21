@@ -5,7 +5,7 @@ from pyrogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
 )
-from helper.database import madflixbots
+from helper.database import madflixbotz
 from pyromod.exceptions import ListenerTimeout
 from config import Txt, Config
 
@@ -23,8 +23,8 @@ OFF = [[InlineKeyboardButton('ᴍᴇᴛᴀᴅᴀᴛᴀ ᴏғғ', callback_data='
 @Client.on_message(filters.private & filters.command("metadata"))
 async def handle_metadata(bot: Client, message: Message):
     ms = await message.reply_text("**Wait A Second...**", reply_to_message_id=message.id)
-    bool_metadata = await codeflixbots.get_metadata(message.from_user.id)
-    user_metadata = await codeflixbots.get_metadata_code(message.from_user.id)
+    bool_metadata = await madflixbotz.get_metadata(message.from_user.id)
+    user_metadata = await madflixbotz.get_metadata_code(message.from_user.id)
     await ms.delete()
     
     if bool_metadata:
@@ -45,16 +45,16 @@ async def query_metadata(bot: Client, query: CallbackQuery):
 
     if data.startswith("metadata_"):
         _bool = data.split("_")[1] == '1'
-        user_metadata = await codeflixbots.get_metadata_code(query.from_user.id)
+        user_metadata = await madflixbotz.get_metadata_code(query.from_user.id)
 
         if _bool:
-            await codeflixbots.set_metadata(query.from_user.id, bool_meta=False)
+            await madflixbotz.set_metadata(query.from_user.id, bool_meta=False)
             await query.message.edit(
                 f"<b>ʏᴏᴜʀ ᴄᴜʀʀᴇɴᴛ ᴍᴇᴛᴀᴅᴀᴛᴀ:</b>\n\n➜ `{user_metadata}` ",
                 reply_markup=InlineKeyboardMarkup(OFF),
             )
         else:
-            await codeflixbots.set_metadata(query.from_user.id, bool_meta=True)
+            await madflixbotz.set_metadata(query.from_user.id, bool_meta=True)
             await query.message.edit(
                 f"<b>ʏᴏᴜʀ ᴄᴜʀʀᴇɴᴛ ᴍᴇᴛᴀᴅᴀᴛᴀ:</b>\n\n➜ `{user_metadata}` ",
                 reply_markup=InlineKeyboardMarkup(ON),
@@ -63,7 +63,7 @@ async def query_metadata(bot: Client, query: CallbackQuery):
     elif data == "custom_metadata":
         await query.message.delete()
         try:
-            user_metadata = await codeflixbots.get_metadata_code(query.from_user.id)
+            user_metadata = await madflixbotz.get_metadata_code(query.from_user.id)
             metadata_message = f"""
 <b>--Metadata Settings:--</b>
 
@@ -92,7 +92,7 @@ async def query_metadata(bot: Client, query: CallbackQuery):
             ms = await query.message.reply_text(
                 "**Wait A Second...**", reply_to_message_id=metadata.id
             )
-            await codeflixbots.set_metadata_code(
+            await madflixbotz.set_metadata_code(
                 query.from_user.id, metadata_code=metadata.text
             )
             await ms.edit("**Your Metadata Code Set Successfully ✅**")
