@@ -9,6 +9,7 @@ from helper.utils import progress_for_pyrogram, humanbytes, convert
 from helper.database import madflixbotz
 from config import Config
 import os
+import shutil
 import time
 import re
 
