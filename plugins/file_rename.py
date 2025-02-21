@@ -17,19 +17,14 @@ import imageio_ffmpeg as ffmpeg  # To reliably obtain the FFmpeg executable
 
 renaming_operations = {}
 
-# Pattern 1: S01E02 or S01EP02
+# Patterns for episode and quality extraction
 pattern1 = re.compile(r'S(\d+)(?:E|EP)(\d+)')
-# Pattern 2: S01 E02 or S01 EP02 or S01 - E01 or S01 - EP02
 pattern2 = re.compile(r'S(\d+)\s*(?:E|EP|-\s*EP)(\d+)')
-# Pattern 3: Episode Number After "E" or "EP"
 pattern3 = re.compile(r'(?:[([<{]?\s*(?:E|EP)\s*(\d+)\s*[)\]>}]?)')
-# Pattern 3_2: episode number after - [hyphen]
 pattern3_2 = re.compile(r'(?:\s*-\s*(\d+)\s*)')
-# Pattern 4: S2 09 ex.
 pattern4 = re.compile(r'S(\d+)[^\d]*(\d+)', re.IGNORECASE)
-# Pattern X: Standalone Episode Number
 patternX = re.compile(r'(\d+)')
-# QUALITY PATTERNS 
+
 pattern5 = re.compile(r'\b(?:.*?(\d{3,4}[^\dp]*p).*?|.*?(\d{3,4}p))\b', re.IGNORECASE)
 pattern6 = re.compile(r'[([<{]?\s*4k\s*[)\]>}]?', re.IGNORECASE)
 pattern7 = re.compile(r'[([<{]?\s*2k\s*[)\]>}]?', re.IGNORECASE)
@@ -80,14 +75,11 @@ def extract_quality(filename):
             quality10 = "4kx265"
             print(f"Quality: {quality10}")
             return quality10    
-
     except Exception as e:
         print(f"Error extracting quality: {e}")
-
     unknown_quality = "Unknown"
     print(f"Quality: {unknown_quality}")
     return unknown_quality
-    
 
 def extract_episode_number(filename):    
     try:
@@ -124,6 +116,37 @@ def extract_episode_number(filename):
         print(f"Error extracting episode number: {e}")
     return None
 
+# Conversion function to convert .mp4, .mov, or .avi to .mkv
+async def convert_to_mkv(file_path, new_file_name):
+    try:
+        ffmpeg_cmd = ffmpeg.get_ffmpeg_exe()
+        if not ffmpeg_cmd:
+            raise FileNotFoundError("FFmpeg not found. Please install FFmpeg.")
+
+        mkv_file_path = file_path.rsplit(".", 1)[0] + ".mkv"
+        conversion_command = [
+            ffmpeg_cmd,
+            '-i', file_path,
+            '-map', '0',        # Preserve all streams
+            '-c', 'copy',       # Stream copy (no re-encoding)
+            '-loglevel', 'error',
+            mkv_file_path
+        ]
+        process = await asyncio.create_subprocess_exec(
+            *conversion_command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await process.communicate()
+        if process.returncode != 0:
+            error_message = stderr.decode().strip()
+            raise RuntimeError(f"Conversion failed: {error_message}")
+        print(f"Converted {file_path} to {mkv_file_path}")
+        return mkv_file_path
+    except Exception as e:
+        print(f"Error converting to MKV: {e}")
+        return file_path  # Fallback: return the original file if conversion fails
+
 # Example usage for testing:
 filename = "Naruto Shippuden S01 - EP07 - 1080p [Dual Audio] @Madflix_Bots.mkv"
 episode_number = extract_episode_number(filename)
@@ -158,7 +181,7 @@ async def auto_rename_files(client, message):
 
         print(f"Original File Name: {file_name}")
     
-        # Check if file is being processed already
+        # Check if file is already being processed
         if file_id in renaming_operations:
             elapsed_time = (datetime.now() - renaming_operations[file_id]).seconds
             if elapsed_time < 10:
@@ -171,12 +194,10 @@ async def auto_rename_files(client, message):
         print(f"Extracted Episode Number: {episode_number}")
     
         if episode_number:
-            placeholders = ["episode", "Episode", "EPISODE", "{episode}"]
-            for placeholder in placeholders:
+            for placeholder in ["episode", "Episode", "EPISODE", "{episode}"]:
                 format_template = format_template.replace(placeholder, str(episode_number), 1)
             
-            quality_placeholders = ["quality", "Quality", "QUALITY", "{quality}"]
-            for quality_placeholder in quality_placeholders:
+            for quality_placeholder in ["quality", "Quality", "QUALITY", "{quality}"]:
                 if quality_placeholder in format_template:
                     extracted_qualities = extract_quality(file_name)
                     if extracted_qualities == "Unknown":
@@ -184,7 +205,7 @@ async def auto_rename_files(client, message):
                         del renaming_operations[file_id]
                         return
                     format_template = format_template.replace(quality_placeholder, "".join(extracted_qualities))
-            
+    
         # Build new file name and path
         _, file_extension = os.path.splitext(file_name)
         new_file_name = f"{format_template}{file_extension}"
@@ -211,6 +232,14 @@ async def auto_rename_files(client, message):
                 duration = metadata.get('duration').seconds
         except Exception as e:
             print(f"Error getting duration: {e}")
+
+        # If file is mp4, mov, or avi, convert to mkv
+        if file_extension.lower() in [".mp4", ".mov", ".avi"]:
+            try:
+                file_path = await convert_to_mkv(file_path, new_file_name)
+                file_extension = ".mkv"
+            except Exception as e:
+                print(f"Conversion error: {e}")
 
         upload_msg = await download_msg.edit("Trying To Uploading.....")
 
@@ -245,11 +274,9 @@ async def auto_rename_files(client, message):
                     stderr=asyncio.subprocess.PIPE
                 )
                 stdout, stderr = await process.communicate()
-
                 if process.returncode != 0:
                     error_message = stderr.decode().strip()
                     raise RuntimeError(f"Metadata processing failed: {error_message}")
-
                 # Use the metadata-embedded file for upload
                 file_path = metadata_file_path
 
@@ -270,19 +297,15 @@ async def auto_rename_files(client, message):
         try:
             c_caption = await madflixbotz.get_caption(message.chat.id)
             c_thumb = await madflixbotz.get_thumbnail(message.chat.id)
-
             caption = (c_caption.format(filename=new_file_name, filesize=humanbytes(message.document.file_size), duration=convert(duration))
                        if c_caption else f"**{new_file_name}**")
-
             if c_thumb:
                 ph_path = await client.download_media(c_thumb)
                 print(f"Thumbnail downloaded successfully. Path: {ph_path}")
             elif media_type == "video" and message.video.thumbs:
                 ph_path = await client.download_media(message.video.thumbs[0].file_id)
-
             if ph_path:
                 try:
-                    # Process thumbnail image
                     img = Image.open(ph_path).convert("RGB")
                     img = img.resize((320, 320))
                     img.save(ph_path, "JPEG")
@@ -335,7 +358,7 @@ async def auto_rename_files(client, message):
 
         # Cleanup downloaded files
         try:
-            await download_msg.delete() 
+            await download_msg.delete()
             os.remove(file_path)
             if ph_path:
                 os.remove(ph_path)
