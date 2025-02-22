@@ -3,11 +3,36 @@ from helper.database import madflixbotz as db
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 from config import Txt
+import asyncio
+from mutagen.easyid3 import EasyID3
+from mutagen.mp4 import MP4
+from mutagen.flac import FLAC
+from mutagen.oggvorbis import OggVorbis
 
 # Set up logging to log exceptions and errors.
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Global lock for processing queue
+processing_lock = asyncio.Lock()
+
+async def update_audio_metadata(file_path, metadata):
+    """Update audio metadata for supported formats."""
+    if file_path.endswith('.mp3'):
+        audio = EasyID3(file_path)
+    elif file_path.endswith('.m4a'):
+        audio = MP4(file_path)
+    elif file_path.endswith('.flac'):
+        audio = FLAC(file_path)
+    elif file_path.endswith('.ogg'):
+        audio = OggVorbis(file_path)
+    else:
+        return False
+
+    for key, value in metadata.items():
+        audio[key] = value
+    audio.save()
+    return True
 
 @Client.on_message(filters.command("metadata"))
 async def metadata(client, message):
@@ -205,3 +230,53 @@ async def video(client, message):
     except Exception as e:
         logger.exception("Error in setvideo command:")
         await message.reply_text("An error occurred while setting your video. Please try again later.")
+
+
+@Client.on_message(filters.private & filters.command('setaudioinfo'))
+async def set_audio_info(client, message):
+    try:
+        if len(message.command) < 2:
+            await message.reply_text("Usage: /setaudioinfo <artist> <title> <genre> <album>")
+            return
+
+        user_id = message.from_user.id
+        artist, title, genre, album = message.command[1:5]
+
+        await db.set_audio_info(user_id, artist, title, genre, album)
+        await message.reply_text("✅ Audio metadata updated successfully!")
+    except Exception as e:
+        logger.exception("Error in setaudioinfo command:")
+        await message.reply_text(f"❌ Error updating audio metadata: {str(e)}")
+
+
+@Client.on_message(filters.private & filters.command('applyaudioinfo'))
+async def apply_audio_info(client, message):
+    try:
+        user_id = message.from_user.id
+        audio_info = await db.get_audio_info(user_id)
+
+        if not audio_info:
+            await message.reply_text("⚠️ No audio metadata found. Please set audio metadata first using /setaudioinfo.")
+            return
+
+        if not message.reply_to_message or not message.reply_to_message.audio:
+            await message.reply_text("⚠️ Please reply to an audio file to apply metadata.")
+            return
+
+        file_id = message.reply_to_message.audio.file_id
+        file_name = message.reply_to_message.audio.file_name
+        file_path = f"downloads/{file_name}"
+
+        await message.reply_text("⬇️ Downloading audio file...")
+        await client.download_media(message=message.reply_to_message, file_name=file_path)
+
+        await message.reply_text("🔧 Applying audio metadata...")
+        if await update_audio_metadata(file_path, audio_info):
+            await message.reply_text("✅ Audio metadata applied successfully!")
+        else:
+            await message.reply_text("❌ Unsupported audio format for metadata editing.")
+
+        os.remove(file_path)
+    except Exception as e:
+        logger.exception("Error in applyaudioinfo command:")
+        await message.reply_text(f"❌ Error applying audio metadata: {str(e)}") 
