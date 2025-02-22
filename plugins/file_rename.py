@@ -14,6 +14,10 @@ import time
 import re
 import asyncio
 import imageio_ffmpeg as ffmpeg
+from mutagen.easyid3 import EasyID3
+from mutagen.mp4 import MP4
+from mutagen.flac import FLAC
+from mutagen.oggvorbis import OggVorbis
 
 # Global lock for processing queue
 processing_lock = asyncio.Lock()
@@ -41,95 +45,60 @@ pattern9 = re.compile(r'[([<{]?\s*4kX264\s*[)\]>}]?', re.IGNORECASE)
 pattern10 = re.compile(r'[([<{]?\s*4kx265\s*[)\]>}]?', re.IGNORECASE)
 
 def extract_quality(filename):
-    match5 = re.search(pattern5, filename)
-    if match5:
-        quality5 = match5.group(1) or match5.group(2)
-        print("Matched Pattern 5")
-        print(f"Quality: {quality5}")
-        return quality5
-
-    match6 = re.search(pattern6, filename)
-    if match6:
-        print("Matched Pattern 6")
-        quality6 = "4k"
-        print(f"Quality: {quality6}")
-        return quality6
-
-    match7 = re.search(pattern7, filename)
-    if match7:
-        print("Matched Pattern 7")
-        quality7 = "2k"
-        print(f"Quality: {quality7}")
-        return quality7
-
-    match8 = re.search(pattern8, filename)
-    if match8:
-        print("Matched Pattern 8")
-        quality8 = "HdRip"
-        print(f"Quality: {quality8}")
-        return quality8
-
-    match9 = re.search(pattern9, filename)
-    if match9:
-        print("Matched Pattern 9")
-        quality9 = "4kX264"
-        print(f"Quality: {quality9}")
-        return quality9
-
-    match10 = re.search(pattern10, filename)
-    if match10:
-        print("Matched Pattern 10")
-        quality10 = "4kx265"
-        print(f"Quality: {quality10}")
-        return quality10    
-
-    unknown_quality = "Unknown"
-    print(f"Quality: {unknown_quality}")
-    return unknown_quality
-    
+    for pattern, quality in [
+        (pattern5, lambda match: match.group(1) or match.group(2)),
+        (pattern6, "4k"),
+        (pattern7, "2k"),
+        (pattern8, "HdRip"),
+        (pattern9, "4kX264"),
+        (pattern10, "4kx265")
+    ]:
+        match = re.search(pattern, filename)
+        if match:
+            print(f"Matched Pattern {pattern}")
+            return quality(match) if callable(quality) else quality
+    return "Unknown"
 
 def extract_episode_number(filename):    
-    match = re.search(pattern1, filename)
-    if match:
-        print("Matched Pattern 1")
-        return match.group(2)
-    
-    match = re.search(pattern2, filename)
-    if match:
-        print("Matched Pattern 2")
-        return match.group(2)
-
-    match = re.search(pattern3, filename)
-    if match:
-        print("Matched Pattern 3")
-        return match.group(1)
-
-    match = re.search(pattern3_2, filename)
-    if match:
-        print("Matched Pattern 3_2")
-        return match.group(1)
-        
-    match = re.search(pattern4, filename)
-    if match:
-        print("Matched Pattern 4")
-        return match.group(2)
-
-    match = re.search(patternX, filename)
-    if match:
-        print("Matched Pattern X")
-        return match.group(1)
-        
+    for pattern in [pattern1, pattern2, pattern3, pattern3_2, pattern4, patternX]:
+        match = re.search(pattern, filename)
+        if match:
+            print(f"Matched Pattern {pattern}")
+            return match.group(2) if pattern in [pattern1, pattern2, pattern4] else match.group(1)
     return None
+
+async def process_file_with_timeout(file_id, task, timeout=30):
+    try:
+        await asyncio.wait_for(task, timeout=timeout)
+    except asyncio.TimeoutError:
+        print(f"⏳ Timeout occurred for file {file_id}, skipping...")
+        if file_id in renaming_operations:
+            del renaming_operations[file_id]
+
+async def update_audio_metadata(file_path, metadata):
+    if file_path.endswith('.mp3'):
+        audio = EasyID3(file_path)
+    elif file_path.endswith('.m4a'):
+        audio = MP4(file_path)
+    elif file_path.endswith('.flac'):
+        audio = FLAC(file_path)
+    elif file_path.endswith('.ogg'):
+        audio = OggVorbis(file_path)
+    else:
+        return False
+
+    for key, value in metadata.items():
+        audio[key] = value
+    audio.save()
+    return True
 
 @Client.on_message(filters.private & (filters.document | filters.video | filters.audio))
 async def auto_rename_files(client, message):
-    # Queue the task so that only one file is processed at a time.
     async with processing_lock:
         try:
             status_message = await message.reply_text("🎬 Starting file processing...")
             
             user_id = message.from_user.id
-            firstname = message.from_user.first_name
             format_template = await madflixbotz.get_format_template(user_id)
             media_preference = await madflixbotz.get_media_preference(user_id)
 
@@ -142,16 +111,19 @@ async def auto_rename_files(client, message):
                 file_id = message.document.file_id
                 file_name = message.document.file_name
                 media_type = media_preference or "document"
+                file_size = message.document.file_size
                 await status_message.edit_text("📄 Document detected")
             elif message.video:
                 file_id = message.video.file_id
-                file_name = message.video.file_name  # Removed MP4 restriction
+                file_name = message.video.file_name
                 media_type = media_preference or "video"
+                file_size = message.video.file_size
                 await status_message.edit_text("🎥 Video detected")
             elif message.audio:
                 file_id = message.audio.file_id
                 file_name = message.audio.file_name
                 media_type = media_preference or "audio"
+                file_size = message.audio.file_size
                 await status_message.edit_text("🎵 Audio detected")
             else:
                 await status_message.edit_text("❌ Unsupported file type")
@@ -181,7 +153,6 @@ async def auto_rename_files(client, message):
                     if quality_placeholder in format_template:
                         extracted_quality = extract_quality(file_name)
                         if extracted_quality == "Unknown":
-                            # Remove the placeholder if quality is unknown.
                             format_template = format_template.replace(quality_placeholder, "")
                         else:
                             format_template = format_template.replace(quality_placeholder, extracted_quality)
@@ -264,7 +235,7 @@ async def auto_rename_files(client, message):
             c_caption = await madflixbotz.get_caption(message.chat.id)
             c_thumb = await madflixbotz.get_thumbnail(message.chat.id)
 
-            caption = (c_caption.format(filename=new_file_name, filesize=humanbytes(message.document.file_size), duration=convert(duration))
+            caption = (c_caption.format(filename=new_file_name, filesize=humanbytes(file_size), duration=convert(duration))
                        if c_caption else f"**{new_file_name}**")
 
             if c_thumb:
@@ -330,3 +301,49 @@ async def auto_rename_files(client, message):
             await message.reply_text(f"❌ An error occurred: {str(e)}")
             if 'file_id' in locals() and file_id in renaming_operations:
                 del renaming_operations[file_id]
+
+@Client.on_message(filters.command("setaudioinfo"))
+async def set_audio_info(client, message):
+    try:
+        if len(message.command) < 2:
+            await message.reply_text("Usage: /setaudioinfo <artist> <title> <genre> <album>")
+            return
+
+        user_id = message.from_user.id
+        artist, title, genre, album = message.command[1:5]
+
+        await madflixbotz.set_audio_info(user_id, artist, title, genre, album)
+        await message.reply_text("✅ Audio metadata updated successfully!")
+    except Exception as e:
+        await message.reply_text(f"❌ Error updating audio metadata: {str(e)}")
+
+@Client.on_message(filters.command("applyaudioinfo"))
+async def apply_audio_info(client, message):
+    try:
+        user_id = message.from_user.id
+        audio_info = await madflixbotz.get_audio_info(user_id)
+
+        if not audio_info:
+            await message.reply_text("⚠️ No audio metadata found. Please set audio metadata first using /setaudioinfo.")
+            return
+
+        if not message.reply_to_message or not message.reply_to_message.audio:
+            await message.reply_text("⚠️ Please reply to an audio file to apply metadata.")
+            return
+
+        file_id = message.reply_to_message.audio.file_id
+        file_name = message.reply_to_message.audio.file_name
+        file_path = f"downloads/{file_name}"
+
+        await message.reply_text("⬇️ Downloading audio file...")
+        await client.download_media(message=message.reply_to_message, file_name=file_path)
+
+        await message.reply_text("🔧 Applying audio metadata...")
+        if await update_audio_metadata(file_path, audio_info):
+            await message.reply_text("✅ Audio metadata applied successfully!")
+        else:
+            await message.reply_text("❌ Unsupported audio format for metadata editing.")
+
+        os.remove(file_path)
+    except Exception as e:
+        await message.reply_text(f"❌ Error applying audio metadata: {str(e)}")
