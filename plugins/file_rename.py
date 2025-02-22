@@ -47,8 +47,8 @@ def extract_quality(filename):
     # Try Quality Patterns
     match5 = re.search(pattern5, filename)
     if match5:
-        print("Matched Pattern 5")
         quality5 = match5.group(1) or match5.group(2)  # Extracted quality from both patterns
+        print("Matched Pattern 5")
         print(f"Quality: {quality5}")
         return quality5
 
@@ -136,7 +136,8 @@ def extract_episode_number(filename):
 @Client.on_message(filters.private & (filters.document | filters.video | filters.audio))
 async def auto_rename_files(client, message):
     try:
-        await message.reply_text("🎬 Starting file processing...")
+        # Use a single status message for all updates.
+        status_message = await message.reply_text("🎬 Starting file processing...")
         
         user_id = message.from_user.id
         firstname = message.from_user.first_name
@@ -144,27 +145,27 @@ async def auto_rename_files(client, message):
         media_preference = await madflixbotz.get_media_preference(user_id)
 
         if not format_template:
-            await message.reply_text("⚠️ No rename format found")
-            return await message.reply_text("Please Set An Auto Rename Format First Using /autorename")
+            await status_message.edit_text("⚠️ No rename format found. Please Set An Auto Rename Format First Using /autorename")
+            return
 
-        await message.reply_text("📁 Detecting file type...")
+        await status_message.edit_text("📁 Detecting file type...")
         if message.document:
             file_id = message.document.file_id
             file_name = message.document.file_name
             media_type = media_preference or "document"
-            await message.reply_text("📄 Document detected")
+            await status_message.edit_text("📄 Document detected")
         elif message.video:
             file_id = message.video.file_id
             file_name = message.video.file_name  # Removed MP4 restriction
             media_type = media_preference or "video"
-            await message.reply_text("🎥 Video detected")
+            await status_message.edit_text("🎥 Video detected")
         elif message.audio:
             file_id = message.audio.file_id
             file_name = message.audio.file_name
             media_type = media_preference or "audio"
-            await message.reply_text("🎵 Audio detected")
+            await status_message.edit_text("🎵 Audio detected")
         else:
-            await message.reply_text("❌ Unsupported file type")
+            await status_message.edit_text("❌ Unsupported file type")
             return
 
         print(f"📋 Processing file: {file_name}")
@@ -172,12 +173,12 @@ async def auto_rename_files(client, message):
         if file_id in renaming_operations:
             elapsed_time = (datetime.now() - renaming_operations[file_id]).seconds
             if elapsed_time < 10:
-                await message.reply_text("⏳ File is currently being processed...")
+                await status_message.edit_text("⏳ File is currently being processed...")
                 return
 
         renaming_operations[file_id] = datetime.now()
 
-        await message.reply_text("🔍 Extracting file information...")
+        await status_message.edit_text("🔍 Extracting file information...")
         episode_number = extract_episode_number(file_name)
         print(f"📺 Episode Number: {episode_number}")
 
@@ -189,31 +190,30 @@ async def auto_rename_files(client, message):
             quality_placeholders = ["quality", "Quality", "QUALITY", "{quality}"]
             for quality_placeholder in quality_placeholders:
                 if quality_placeholder in format_template:
-                    extracted_qualities = extract_quality(file_name)
-                    if extracted_qualities == "Unknown":
-                        await message.reply_text("⚠️ Quality extraction failed - using 'Unknown'")
-                        del renaming_operations[file_id]
-                        return
-                    
-                    format_template = format_template.replace(quality_placeholder, "".join(extracted_qualities))           
+                    extracted_quality = extract_quality(file_name)
+                    if extracted_quality == "Unknown":
+                        # Instead of stating quality, remove the placeholder.
+                        format_template = format_template.replace(quality_placeholder, "")
+                    else:
+                        format_template = format_template.replace(quality_placeholder, extracted_quality)
             
         _, file_extension = os.path.splitext(file_name)
         new_file_name = f"{format_template}{file_extension}"
         file_path = f"downloads/{new_file_name}"
         file = message
 
-        download_msg = await message.reply_text("⬇️ Starting download...")
+        await status_message.edit_text("⬇️ Starting download...")
         try:
             path = await client.download_media(
                 message=file, 
                 file_name=file_path, 
                 progress=progress_for_pyrogram, 
-                progress_args=("Download Started....", download_msg, time.time())
+                progress_args=("Download Started....", status_message, time.time())
             )
         except Exception as e:
+            await status_message.edit_text(f"❌ Download failed: {str(e)}")
             del renaming_operations[file_id]
-            await message.reply_text(f"❌ Download failed: {str(e)}")
-            return await download_msg.edit(e)     
+            return
 
         duration = 0
         try:
@@ -223,7 +223,7 @@ async def auto_rename_files(client, message):
         except Exception as e:
             print(f"⚠️ Duration extraction error: {e}")
 
-        upload_msg = await download_msg.edit("⬆️ Starting upload...")
+        await status_message.edit_text("⬆️ Starting upload...")
 
         try:
             ffmpeg_cmd = ffmpeg.get_ffmpeg_exe()
@@ -261,10 +261,10 @@ async def auto_rename_files(client, message):
 
             file_path = metadata_file_path
 
-            await message.reply_text("✅ Metadata processing completed")
+            await status_message.edit_text("✅ Metadata processing completed")
 
         except Exception as e:
-            await upload_msg.edit(f"❌ Metadata Error: {str(e)}")
+            await status_message.edit_text(f"❌ Metadata Error: {str(e)}")
             return
 
         ph_path = None
@@ -294,7 +294,7 @@ async def auto_rename_files(client, message):
                     thumb=ph_path,
                     caption=caption,
                     progress=progress_for_pyrogram,
-                    progress_args=("Upload Started.....", upload_msg, time.time())
+                    progress_args=("Upload Started.....", status_message, time.time())
                 )
             elif media_type == "video":
                 await client.send_video(
@@ -304,7 +304,7 @@ async def auto_rename_files(client, message):
                     thumb=ph_path,
                     duration=duration,
                     progress=progress_for_pyrogram,
-                    progress_args=("Upload Started.....", upload_msg, time.time())
+                    progress_args=("Upload Started.....", status_message, time.time())
                 )
             elif media_type == "audio":
                 await client.send_audio(
@@ -314,19 +314,18 @@ async def auto_rename_files(client, message):
                     thumb=ph_path,
                     duration=duration,
                     progress=progress_for_pyrogram,
-                    progress_args=("Upload Started.....", upload_msg, time.time())
+                    progress_args=("Upload Started.....", status_message, time.time())
                 )
             
-            await message.reply_text("✅ File processing completed successfully!")
+            await status_message.edit_text("✅ File processing completed successfully!")
             
         except Exception as e:
-            await message.reply_text(f"❌ Upload failed: {str(e)}")
+            await status_message.edit_text(f"❌ Upload failed: {str(e)}")
             os.remove(file_path)
             if ph_path:
                 os.remove(ph_path)
-            return await upload_msg.edit(f"Error: {e}")
+            return
 
-        await download_msg.delete() 
         os.remove(file_path)
         if ph_path:
             os.remove(ph_path)
@@ -338,8 +337,3 @@ async def auto_rename_files(client, message):
         await message.reply_text(f"❌ An error occurred: {str(e)}")
         if 'file_id' in locals() and file_id in renaming_operations:
             del renaming_operations[file_id]
-
-# Jishu Developer 
-# Don't Remove Credit 🥺
-# Telegram Channel @Madflix_Bots
-# Developer @JishuDeveloper
