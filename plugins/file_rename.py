@@ -1,6 +1,6 @@
 from pyrogram import Client, filters
 from pyrogram.errors import FloodWait
-from pyrogram.types import InputMediaDocument, Message
+from pyrogram.types import InputMediaDocument, Message 
 from PIL import Image
 from datetime import datetime
 from hachoir.metadata import extractMetadata
@@ -20,33 +20,25 @@ processing_lock = asyncio.Lock()
 renaming_operations = {}
 
 # Pattern definitions remain unchanged...
-
 # Pattern 1: S01E02 or S01EP02
 pattern1 = re.compile(r'S(\d+)(?:E|EP)(\d+)')
-
 # Pattern 2: S01 E02 or S01 EP02 or S01 - E01 or S01 - EP02
 pattern2 = re.compile(r'S(\d+)\s*(?:E|EP|-\s*EP)(\d+)')
-
 # Pattern 3: Episode Number After "E" or "EP"
-pattern3 = re.compile(r'(?:[([<{]?\s*(?:E|EP)\s*(\d+)\s*[)]>}]?)')
-
+pattern3 = re.compile(r'(?:[([<{]?\s*(?:E|EP)\s*(\d+)\s*[)\]>}]?)')
 # Pattern 3_2: episode number after - [hyphen]
 pattern3_2 = re.compile(r'(?:\s*-\s*(\d+)\s*)')
-
 # Pattern 4: S2 09 ex.
 pattern4 = re.compile(r'S(\d+)[^\d]*(\d+)', re.IGNORECASE)
-
 # Pattern X: Standalone Episode Number
 patternX = re.compile(r'(\d+)')
-
-# QUALITY PATTERNS
-
-pattern5 = re.compile(r'\b(?:.?(\d{3,4}[^\dp]p).?|.?(\d{3,4}p))\b', re.IGNORECASE)
-pattern6 = re.compile(r'[([<{]?\s4k\s[)]>}]?', re.IGNORECASE)
-pattern7 = re.compile(r'[([<{]?\s2k\s[)]>}]?', re.IGNORECASE)
-pattern8 = re.compile(r'[([<{]?\sHdRip\s[)]>}]?|\bHdRip\b', re.IGNORECASE)
-pattern9 = re.compile(r'[([<{]?\s4kX264\s[)]>}]?', re.IGNORECASE)
-pattern10 = re.compile(r'[([<{]?\s4kx265\s[)]>}]?', re.IGNORECASE)
+# QUALITY PATTERNS 
+pattern5 = re.compile(r'\b(?:.*?(\d{3,4}[^\dp]*p).*?|.*?(\d{3,4}p))\b', re.IGNORECASE)
+pattern6 = re.compile(r'[([<{]?\s*4k\s*[)\]>}]?', re.IGNORECASE)
+pattern7 = re.compile(r'[([<{]?\s*2k\s*[)\]>}]?', re.IGNORECASE)
+pattern8 = re.compile(r'[([<{]?\s*HdRip\s*[)\]>}]?|\bHdRip\b', re.IGNORECASE)
+pattern9 = re.compile(r'[([<{]?\s*4kX264\s*[)\]>}]?', re.IGNORECASE)
+pattern10 = re.compile(r'[([<{]?\s*4kx265\s*[)\]>}]?', re.IGNORECASE)
 
 def extract_quality(filename):
     match5 = re.search(pattern5, filename)
@@ -91,15 +83,17 @@ def extract_quality(filename):
         print(f"Quality: {quality10}")
         return quality10    
 
-    print("Quality: None")
-    return None
+    unknown_quality = "Unknown"
+    print(f"Quality: {unknown_quality}")
+    return unknown_quality
+    
 
-def extract_episode_number(filename):
+def extract_episode_number(filename):    
     match = re.search(pattern1, filename)
     if match:
         print("Matched Pattern 1")
         return match.group(2)
-
+    
     match = re.search(pattern2, filename)
     if match:
         print("Matched Pattern 2")
@@ -133,7 +127,7 @@ async def auto_rename_files(client, message):
     async with processing_lock:
         try:
             status_message = await message.reply_text("🎬 Starting file processing...")
-
+            
             user_id = message.from_user.id
             firstname = message.from_user.first_name
             format_template = await madflixbotz.get_format_template(user_id)
@@ -186,7 +180,7 @@ async def auto_rename_files(client, message):
                 for quality_placeholder in quality_placeholders:
                     if quality_placeholder in format_template:
                         extracted_quality = extract_quality(file_name)
-                        if extracted_quality is None:
+                        if extracted_quality == "Unknown":
                             # Remove the placeholder if quality is unknown.
                             format_template = format_template.replace(quality_placeholder, "")
                         else:
