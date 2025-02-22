@@ -83,9 +83,9 @@ def extract_quality(filename):
         print(f"Quality: {quality10}")
         return quality10    
 
-    unknown_quality = "Unknown"
-    print(f"Quality: {unknown_quality}")
-    return unknown_quality
+    unknown_quality = "None"
+    print(f"Quality: {none}")
+    return none
     
 
 def extract_episode_number(filename):    
@@ -180,7 +180,7 @@ async def auto_rename_files(client, message):
                 for quality_placeholder in quality_placeholders:
                     if quality_placeholder in format_template:
                         extracted_quality = extract_quality(file_name)
-                        if extracted_quality == "Unknown":
+                        if extracted_quality == "None":
                             # Remove the placeholder if quality is unknown.
                             format_template = format_template.replace(quality_placeholder, "")
                         else:
