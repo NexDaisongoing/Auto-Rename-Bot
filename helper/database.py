@@ -22,7 +22,11 @@ class Database:
             artist=None,
             video=None,
             audio=None,
-            subtitle=None
+            subtitle=None,
+            audio_artist=None,
+            audio_title=None,
+            audio_genre=None,
+            audio_album=None
         )
 
     async def add_user(self, b, m):
@@ -152,5 +156,33 @@ class Database:
     async def get_subtitle(self, user_id):
         user = await self.col.find_one({'_id': int(user_id)})
         return user.get('subtitle', None)
+
+    # Audio metadata fields (Artist, Title, Genre, Album)
+    async def set_audio_info(self, user_id, artist, title, genre, album):
+        """Set audio metadata for a user"""
+        await self.col.update_one(
+            {'_id': int(user_id)},
+            {'$set': {
+                'audio_artist': artist,
+                'audio_title': title,
+                'audio_genre': genre,
+                'audio_album': album
+            }},
+            upsert=True
+        )
+
+    async def get_audio_info(self, user_id):
+        """Get audio metadata for a user"""
+        user = await self.col.find_one({'_id': int(user_id)})
+        if not user:
+            user = self.new_user(user_id)
+            await self.col.insert_one(user)
+            return None
+        return {
+            'artist': user.get('audio_artist', None),
+            'title': user.get('audio_title', None),
+            'genre': user.get('audio_genre', None),
+            'album': user.get('audio_album', None)
+        }
 
 madflixbotz = Database(Config.DB_URL, Config.DB_NAME)
