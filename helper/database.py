@@ -65,6 +65,13 @@ class Database:
     async def get_caption(self, id):
         user = await self.col.find_one({'_id': int(id)})
         return user.get('caption', None)
+        
+    async def set_media_preference(self, id, media_type):
+        await self.col.update_one({'_id': int(id)}, {'$set': {'media_type': media_type}})
+        
+    async def get_media_preference(self, id):
+        user = await self.col.find_one({'_id': int(id)})
+        return user.get('media_type', None)        
 
     async def set_format_template(self, id, format_template):
         await self.col.update_one({'_id': int(id)}, {'$set': {'format_template': format_template}})
@@ -72,14 +79,7 @@ class Database:
     async def get_format_template(self, id):
         user = await self.col.find_one({'_id': int(id)})
         return user.get('format_template', None)
-        
-    async def set_media_preference(self, id, media_type):
-        await self.col.update_one({'_id': int(id)}, {'$set': {'media_type': media_type}})
-        
-    async def get_media_preference(self, id):
-        user = await self.col.find_one({'_id': int(id)})
-        return user.get('media_type', None)
-        
+
     # Enhanced metadata operations for audio files
     async def set_audio_metadata(self, user_id, title=None, artist=None, album=None, genre=None, author=None):
         default = await self.get_default_metadata(user_id)
@@ -136,43 +136,36 @@ class Database:
         user = await self.col.find_one({'_id': int(user_id)})
         return user.get('default_metadata', "@Anime_Onsen | @Matrix_Bots")
 
-    # Compatibility methods for existing code
-    async def set_title(self, user_id, title):
-        await self.set_audio_metadata(user_id, title=title)
-        await self.set_video_metadata(user_id, title=title)
-
-    async def get_title(self, user_id):
-        audio_meta = await self.get_audio_metadata(user_id)
-        return audio_meta['title']
-
-    async def set_author(self, user_id, author):
-        await self.set_audio_metadata(user_id, author=author)
-
-    async def get_author(self, user_id):
-        audio_meta = await self.get_audio_metadata(user_id)
-        return audio_meta['author']
-
-    # Modified to update only the audio_artist field (partial update)
-    async def set_artist(self, user_id, artist):
-        await self.col.update_one({'_id': int(user_id)}, {'$set': {'audio_artist': artist}}, upsert=True)
-
-    async def get_artist(self, user_id):
-        audio_meta = await self.get_audio_metadata(user_id)
-        return audio_meta['artist']
-
-    # New methods for individual audio metadata fields for compatibility with metadata.py
+    # New methods for compatibility with metadata.py
     async def set_atitle(self, user_id, title):
         await self.col.update_one({'_id': int(user_id)}, {'$set': {'audio_title': title}}, upsert=True)
+
+    async def get_atitle(self, user_id):
+        user = await self.col.find_one({'_id': int(user_id)})
+        return user.get('audio_title', await self.get_default_metadata(user_id))
 
     async def set_aalbum(self, user_id, album):
         await self.col.update_one({'_id': int(user_id)}, {'$set': {'audio_album': album}}, upsert=True)
 
+    async def get_aalbum(self, user_id):
+        user = await self.col.find_one({'_id': int(user_id)})
+        return user.get('audio_album', await self.get_default_metadata(user_id))
+
     async def set_agenre(self, user_id, genre):
         await self.col.update_one({'_id': int(user_id)}, {'$set': {'audio_genre': genre}}, upsert=True)
+
+    async def get_agenre(self, user_id):
+        user = await self.col.find_one({'_id': int(user_id)})
+        return user.get('audio_genre', await self.get_default_metadata(user_id))
 
     async def set_aauthor(self, user_id, author):
         await self.col.update_one({'_id': int(user_id)}, {'$set': {'audio_author': author}}, upsert=True)
 
+    async def get_aauthor(self, user_id):
+        user = await self.col.find_one({'_id': int(user_id)})
+        return user.get('audio_author', await self.get_default_metadata(user_id))
+
+    # Existing methods remain unchanged
     async def set_video(self, user_id, video):
         await self.set_video_metadata(user_id, name=video)
 
