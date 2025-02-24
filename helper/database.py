@@ -145,12 +145,26 @@ class Database:
         audio_meta = await self.get_audio_metadata(user_id)
         return audio_meta['author']
 
+    # Modified to update only the audio_artist field (partial update)
     async def set_artist(self, user_id, artist):
-        await self.set_audio_metadata(user_id, artist=artist)
+        await self.col.update_one({'_id': int(user_id)}, {'$set': {'audio_artist': artist}}, upsert=True)
 
     async def get_artist(self, user_id):
         audio_meta = await self.get_audio_metadata(user_id)
         return audio_meta['artist']
+
+    # New methods for individual audio metadata fields for compatibility with metadata.py
+    async def set_atitle(self, user_id, title):
+        await self.col.update_one({'_id': int(user_id)}, {'$set': {'audio_title': title}}, upsert=True)
+
+    async def set_aalbum(self, user_id, album):
+        await self.col.update_one({'_id': int(user_id)}, {'$set': {'audio_album': album}}, upsert=True)
+
+    async def set_agenre(self, user_id, genre):
+        await self.col.update_one({'_id': int(user_id)}, {'$set': {'audio_genre': genre}}, upsert=True)
+
+    async def set_aauthor(self, user_id, author):
+        await self.col.update_one({'_id': int(user_id)}, {'$set': {'audio_author': author}}, upsert=True)
 
     async def set_video(self, user_id, video):
         await self.set_video_metadata(user_id, name=video)
