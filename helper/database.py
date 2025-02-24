@@ -72,7 +72,14 @@ class Database:
     async def get_format_template(self, id):
         user = await self.col.find_one({'_id': int(id)})
         return user.get('format_template', None)
-
+        
+    async def set_media_preference(self, id, media_type):
+        await self.col.update_one({'_id': int(id)}, {'$set': {'media_type': media_type}})
+        
+    async def get_media_preference(self, id):
+        user = await self.col.find_one({'_id': int(id)})
+        return user.get('media_type', None)
+        
     # Enhanced metadata operations for audio files
     async def set_audio_metadata(self, user_id, title=None, artist=None, album=None, genre=None, author=None):
         default = await self.get_default_metadata(user_id)
