@@ -14,167 +14,209 @@ import time
 import re
 import asyncio
 import imageio_ffmpeg as ffmpeg
-from mutagen.easyid3 import EasyID3
-from mutagen.mp4 import MP4
-from mutagen.flac import FLAC
-from mutagen.oggvorbis import OggVorbis
 
-# Global lock for processing queue
-processing_lock = asyncio.Lock()
-renaming_operations = {}
+# Global state management
+active_rename_tasks = {}
+task_processor_lock = asyncio.Lock()
 
-# Pattern definitions remain unchanged...
-# Pattern 1: S01E02 or S01EP02
-pattern1 = re.compile(r'S(\d+)(?:E|EP)(\d+)')
-# Pattern 2: S01 E02 or S01 EP02 or S01 - E01 or S01 - EP02
-pattern2 = re.compile(r'S(\d+)\s*(?:E|EP|-\s*EP)(\d+)')
-# Pattern 3: Episode Number After "E" or "EP"
-pattern3 = re.compile(r'(?:[([<{]?\s*(?:E|EP)\s*(\d+)\s*[)\]>}]?)')
-# Pattern 3_2: episode number after - [hyphen]
-pattern3_2 = re.compile(r'(?:\s*-\s*(\d+)\s*)')
-# Pattern 4: S2 09 ex.
-pattern4 = re.compile(r'S(\d+)[^\d]*(\d+)', re.IGNORECASE)
-# Pattern X: Standalone Episode Number
-patternX = re.compile(r'(\d+)')
-# QUALITY PATTERNS 
-pattern5 = re.compile(r'\b(?:.*?(\d{3,4}[^\dp]*p).*?|.*?(\d{3,4}p))\b', re.IGNORECASE)
-pattern6 = re.compile(r'[([<{]?\s*4k\s*[)\]>}]?', re.IGNORECASE)
-pattern7 = re.compile(r'[([<{]?\s*2k\s*[)\]>}]?', re.IGNORECASE)
-pattern8 = re.compile(r'[([<{]?\s*HdRip\s*[)\]>}]?|\bHdRip\b', re.IGNORECASE)
-pattern9 = re.compile(r'[([<{]?\s*4kX264\s*[)\]>}]?', re.IGNORECASE)
-pattern10 = re.compile(r'[([<{]?\s*4kx265\s*[)\]>}]?', re.IGNORECASE)
+# Episode pattern definitions
+EPISODE_PATTERNS = {
+    'standard_pattern': re.compile(r'S(\d+)(?:E|EP)(\d+)'),
+    'spaced_pattern': re.compile(r'S(\d+)\s*(?:E|EP|-\s*EP)(\d+)'),
+    'episode_marker_pattern': re.compile(r'(?:[([<{]?\s*(?:E|EP)\s*(\d+)\s*[)\]>}]?)'),
+    'hyphen_pattern': re.compile(r'(?:\s*-\s*(\d+)\s*)'),
+    'season_number_pattern': re.compile(r'S(\d+)[^\d]*(\d+)', re.IGNORECASE),
+    'numeric_pattern': re.compile(r'(\d+)')
+}
+
+# Quality pattern definitions
+QUALITY_PATTERNS = {
+    'resolution_pattern': re.compile(r'\b(?:.*?(\d{3,4}[^\dp]*p).*?|.*?(\d{3,4}p))\b', re.IGNORECASE),
+    '4k_pattern': re.compile(r'[([<{]?\s*4k\s*[)\]>}]?', re.IGNORECASE),
+    '2k_pattern': re.compile(r'[([<{]?\s*2k\s*[)\]>}]?', re.IGNORECASE),
+    'hdrip_pattern': re.compile(r'[([<{]?\s*HdRip\s*[)\]>}]?|\bHdRip\b', re.IGNORECASE),
+    '4k_x264_pattern': re.compile(r'[([<{]?\s*4kX264\s*[)\]>}]?', re.IGNORECASE),
+    '4k_x265_pattern': re.compile(r'[([<{]?\s*4kx265\s*[)\]>}]?', re.IGNORECASE)
+}
 
 def extract_quality(filename):
-    for pattern, quality in [
-        (pattern5, lambda match: match.group(1) or match.group(2)),
-        (pattern6, "4k"),
-        (pattern7, "2k"),
-        (pattern8, "HdRip"),
-        (pattern9, "4kX264"),
-        (pattern10, "4kx265")
-    ]:
-        match = re.search(pattern, filename)
+    """Extract video quality information from filename."""
+    quality_checks = [
+        ('resolution_pattern', lambda m: m.group(1) or m.group(2)),
+        ('4k_pattern', lambda _: '4k'),
+        ('2k_pattern', lambda _: '2k'),
+        ('hdrip_pattern', lambda _: 'HdRip'),
+        ('4k_x264_pattern', lambda _: '4kX264'),
+        ('4k_x265_pattern', lambda _: '4kx265')
+    ]
+
+    for pattern_name, quality_extractor in quality_checks:
+        match = re.search(QUALITY_PATTERNS[pattern_name], filename)
         if match:
-            print(f"Matched Pattern {pattern}")
-            return quality(match) if callable(quality) else quality
+            quality = quality_extractor(match)
+            print(f"Matched {pattern_name}")
+            print(f"Quality: {quality}")
+            return quality
+
+    print("Quality: Unknown")
     return "Unknown"
 
-def extract_episode_number(filename):    
-    for pattern in [pattern1, pattern2, pattern3, pattern3_2, pattern4, patternX]:
+def extract_episode_number(filename):
+    """Extract episode number from filename using multiple patterns."""
+    for pattern_name, pattern in EPISODE_PATTERNS.items():
         match = re.search(pattern, filename)
         if match:
-            print(f"Matched Pattern {pattern}")
-            return match.group(2) if pattern in [pattern1, pattern2, pattern4] else match.group(1)
+            print(f"Matched {pattern_name}")
+            return match.group(2) if pattern_name != 'numeric_pattern' else match.group(1)
     return None
 
-async def process_file_with_timeout(file_id, task, timeout=30):
-    try:
-        await asyncio.wait_for(task, timeout=timeout)
-    except asyncio.TimeoutError:
-        print(f"⏳ Timeout occurred for file {file_id}, skipping...")
-        if file_id in renaming_operations:
-            del renaming_operations[file_id]
+async def process_metadata(file_path, new_file_name, file_extension, user_id, status_message):
+    """Process file metadata based on file type."""
+    metadata_supported_video = {".3g2", ".asf", ".avi", ".drc", ".f4v", ".flv", ".gif", ".gifv", 
+                              ".m2ts", ".m4v", ".mkv", ".mov", ".mp4", ".mpe", ".mpeg", ".mpg",
+                              ".mpv", ".mxf", ".nsv", ".ogv", ".qt", ".rm", ".rmvb", ".svi",
+                              ".ts", ".vob", ".webm", ".wmv", ".yuv"}
+    
+    metadata_supported_audio = {".3gp", ".aa", ".aac", ".aax", ".act", ".aiff", ".alac", ".amr",
+                              ".ape", ".au", ".awb", ".dss", ".dvf", ".flac", ".gsm", ".iklax",
+                              ".ivs", ".m4a", ".m4b", ".m4p", ".mmf", ".movpkg", ".mp3", ".mpc",
+                              ".msv", ".nmf", ".ogg", ".oga", ".mogg", ".opus", ".ra", ".rm",
+                              ".raw", ".rf64", ".sln", ".tta", ".voc", ".vox", ".wav", ".wma",
+                              ".wv", ".webm", ".8svx", ".cda"}
 
-async def update_audio_metadata(file_path, metadata):
-    if file_path.endswith('.mp3'):
-        audio = EasyID3(file_path)
-    elif file_path.endswith('.m4a'):
-        audio = MP4(file_path)
-    elif file_path.endswith('.flac'):
-        audio = FLAC(file_path)
-    elif file_path.endswith('.ogg'):
-        audio = OggVorbis(file_path)
+    ffmpeg_cmd = ffmpeg.get_ffmpeg_exe()
+    if not ffmpeg_cmd:
+        raise FileNotFoundError("FFmpeg not found. Please install FFmpeg.")
+
+    metadata_output_path = f"Metadata/{new_file_name}"
+    os.makedirs(os.path.dirname(metadata_output_path), exist_ok=True)
+
+    if file_extension.lower() in metadata_supported_video:
+        metadata_command = [
+            ffmpeg_cmd,
+            '-i', file_path,
+            '-metadata', f'title={await madflixbotz.get_title(user_id)}',
+            '-metadata', f'artist={await madflixbotz.get_artist(user_id)}',
+            '-metadata', f'author={await madflixbotz.get_author(user_id)}',
+            '-metadata:s:v', f'title={await madflixbotz.get_video(user_id)}',
+            '-metadata:s:a', f'title={await madflixbotz.get_audio(user_id)}',
+            '-metadata:s:s', f'title={await madflixbotz.get_subtitle(user_id)}',
+            '-map', '0',
+            '-c', 'copy',
+            '-loglevel', 'error',
+            metadata_output_path
+        ]
+    elif file_extension.lower() in metadata_supported_audio:
+        metadata_command = [
+            ffmpeg_cmd,
+            '-i', file_path,
+            '-metadata', f'title={await madflixbotz.get_atitle(user_id)}',
+            '-metadata', f'artist={await madflixbotz.get_aauthor(user_id)}',
+            '-metadata', f'genre={await madflixbotz.get_agenre(user_id)}',
+            '-metadata', f'album={await madflixbotz.get_aalbum(user_id)}',
+            '-map', '0',
+            '-c', 'copy',
+            '-loglevel', 'error',
+            metadata_output_path
+        ]
     else:
-        return False
+        await status_message.edit_text("⚠️ Skipping metadata processing for unsupported format")
+        return file_path
 
-    for key, value in metadata.items():
-        audio[key] = value
-    audio.save()
-    return True
+    process = await asyncio.create_subprocess_exec(
+        *metadata_command,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    stdout, stderr = await process.communicate()
+
+    if process.returncode != 0:
+        raise RuntimeError(f"Metadata processing failed: {stderr.decode().strip()}")
+
+    await status_message.edit_text("✅ Metadata processing completed")
+    return metadata_output_path
 
 @Client.on_message(filters.private & (filters.document | filters.video | filters.audio))
 async def auto_rename_files(client, message):
-    async with processing_lock:
+    """Handle automatic file renaming and processing."""
+    async with task_processor_lock:
         try:
             status_message = await message.reply_text("🎬 Starting file processing...")
             
+            # Extract user information and preferences
             user_id = message.from_user.id
             format_template = await madflixbotz.get_format_template(user_id)
             media_preference = await madflixbotz.get_media_preference(user_id)
 
             if not format_template:
-                await status_message.edit_text("⚠️ No rename format found. Please Set An Auto Rename Format First Using /autorename")
+                await status_message.edit_text("⚠️ No rename format found. Please set format using /autorename")
                 return
 
+            # Detect file type and extract information
             await status_message.edit_text("📁 Detecting file type...")
-            if message.document:
-                file_id = message.document.file_id
-                file_name = message.document.file_name
-                media_type = media_preference or "document"
-                file_size = message.document.file_size
-                await status_message.edit_text("📄 Document detected")
-            elif message.video:
-                file_id = message.video.file_id
-                file_name = message.video.file_name
-                media_type = media_preference or "video"
-                file_size = message.video.file_size
-                await status_message.edit_text("🎥 Video detected")
-            elif message.audio:
-                file_id = message.audio.file_id
-                file_name = message.audio.file_name
-                media_type = media_preference or "audio"
-                file_size = message.audio.file_size
-                await status_message.edit_text("🎵 Audio detected")
+            file_info = {
+                'document': (message.document, "📄 Document detected"),
+                'video': (message.video, "🎥 Video detected"),
+                'audio': (message.audio, "🎵 Audio detected")
+            }
+
+            for media_type, (media, detection_message) in file_info.items():
+                if getattr(message, media_type):
+                    file_id = media.file_id
+                    file_name = media.file_name
+                    media_type = media_preference or media_type
+                    await status_message.edit_text(detection_message)
+                    break
             else:
                 await status_message.edit_text("❌ Unsupported file type")
                 return
 
             print(f"📋 Processing file: {file_name}")
 
-            if file_id in renaming_operations:
-                elapsed_time = (datetime.now() - renaming_operations[file_id]).seconds
+            # Check if file is already being processed
+            if file_id in active_rename_tasks:
+                elapsed_time = (datetime.now() - active_rename_tasks[file_id]).seconds
                 if elapsed_time < 10:
                     await status_message.edit_text("⏳ File is currently being processed...")
                     return
 
-            renaming_operations[file_id] = datetime.now()
+            active_rename_tasks[file_id] = datetime.now()
 
+            # Extract file information and process
             await status_message.edit_text("🔍 Extracting file information...")
             episode_number = extract_episode_number(file_name)
             print(f"📺 Episode Number: {episode_number}")
 
             if episode_number:
-                placeholders = ["episode", "Episode", "EPISODE", "{episode}"]
-                for placeholder in placeholders:
+                for placeholder in ["episode", "Episode", "EPISODE", "{episode}"]:
                     format_template = format_template.replace(placeholder, str(episode_number), 1)
                 
-                quality_placeholders = ["quality", "Quality", "QUALITY", "{quality}"]
-                for quality_placeholder in quality_placeholders:
+                for quality_placeholder in ["quality", "Quality", "QUALITY", "{quality}"]:
                     if quality_placeholder in format_template:
                         extracted_quality = extract_quality(file_name)
-                        if extracted_quality == "Unknown":
-                            format_template = format_template.replace(quality_placeholder, "")
-                        else:
-                            format_template = format_template.replace(quality_placeholder, extracted_quality)
-            
-            _, file_extension = os.path.splitext(file_name)
+                        format_template = format_template.replace(quality_placeholder, 
+                                                               "" if extracted_quality == "Unknown" else extracted_quality)
+
+            # Prepare file paths and process file
+            file_extension = os.path.splitext(file_name)[1]
             new_file_name = f"{format_template}{file_extension}"
             file_path = f"downloads/{new_file_name}"
-            file = message
 
+            # Download file
             await status_message.edit_text("⬇️ Starting download...")
             try:
                 path = await client.download_media(
-                    message=file, 
-                    file_name=file_path, 
-                    progress=progress_for_pyrogram, 
+                    message=message,
+                    file_name=file_path,
+                    progress=progress_for_pyrogram,
                     progress_args=("Download Started....", status_message, time.time())
                 )
             except Exception as e:
                 await status_message.edit_text(f"❌ Download failed: {str(e)}")
-                del renaming_operations[file_id]
+                del active_rename_tasks[file_id]
                 return
 
+            # Extract duration metadata
             duration = 0
             try:
                 metadata = extractMetadata(createParser(file_path))
@@ -183,167 +225,70 @@ async def auto_rename_files(client, message):
             except Exception as e:
                 print(f"⚠️ Duration extraction error: {e}")
 
+            # Process metadata
             await status_message.edit_text("⬆️ Starting upload...")
-
-            # Check if the file format supports metadata embedding
-            metadata_supported_formats = {".mkv", ".avi", ".mov", ".mp4"}
-            if file_extension.lower() in metadata_supported_formats:
-                try:
-                    ffmpeg_cmd = ffmpeg.get_ffmpeg_exe()
-                    if not ffmpeg_cmd:
-                        raise FileNotFoundError("FFmpeg not found. Please install FFmpeg.")
-
-                    metadata_file_path = f"Metadata/{new_file_name}"
-                    os.makedirs(os.path.dirname(metadata_file_path), exist_ok=True)
-
-                    metadata_command = [
-                        ffmpeg_cmd,
-                        '-i', file_path,
-                        '-metadata', f'title={await madflixbotz.get_title(user_id)}',
-                        '-metadata', f'artist={await madflixbotz.get_artist(user_id)}',
-                        '-metadata', f'author={await madflixbotz.get_author(user_id)}',
-                        '-metadata:s:v', f'title={await madflixbotz.get_video(user_id)}',
-                        '-metadata:s:a', f'title={await madflixbotz.get_audio(user_id)}',
-                        '-metadata:s:s', f'title={await madflixbotz.get_subtitle(user_id)}',
-                        '-map', '0',
-                        '-c', 'copy',
-                        '-loglevel', 'error',
-                        metadata_file_path
-                    ]
-
-                    process = await asyncio.create_subprocess_exec(
-                        *metadata_command,
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE
-                    )
-                    stdout, stderr = await process.communicate()
-
-                    if process.returncode != 0:
-                        error_message = stderr.decode().strip()
-                        raise RuntimeError(f"Metadata processing failed: {error_message}")
-
-                    file_path = metadata_file_path
-
-                    await status_message.edit_text("✅ Metadata processing completed")
-                except Exception as e:
-                    await status_message.edit_text(f"❌ Metadata Error: {str(e)}")
-                    return
-            else:
-                await status_message.edit_text("⚠️ Skipping metadata processing for unsupported file format")
-
-            ph_path = None
-            c_caption = await madflixbotz.get_caption(message.chat.id)
-            c_thumb = await madflixbotz.get_thumbnail(message.chat.id)
-
-            caption = (c_caption.format(filename=new_file_name, filesize=humanbytes(file_size), duration=convert(duration))
-                       if c_caption else f"**{new_file_name}**")
-
-            if c_thumb:
-                ph_path = await client.download_media(c_thumb)
-                print("🖼️ Custom thumbnail applied")
-            elif media_type == "video" and message.video.thumbs:
-                ph_path = await client.download_media(message.video.thumbs[0].file_id)
-
-            if ph_path:
-                Image.open(ph_path).convert("RGB").save(ph_path)
-                img = Image.open(ph_path)
-                img = img.resize((320, 320))
-                img.save(ph_path, "JPEG")    
-            
             try:
-                if media_type == "document":
-                    await client.send_document(
-                        message.chat.id,
-                        document=file_path,
-                        thumb=ph_path,
-                        caption=caption,
-                        progress=progress_for_pyrogram,
-                        progress_args=("Upload Started.....", status_message, time.time())
-                    )
-                elif media_type == "video":
-                    await client.send_video(
-                        message.chat.id,
-                        video=file_path,
-                        caption=caption,
-                        thumb=ph_path,
-                        duration=duration,
-                        progress=progress_for_pyrogram,
-                        progress_args=("Upload Started.....", status_message, time.time())
-                    )
-                elif media_type == "audio":
-                    await client.send_audio(
-                        message.chat.id,
-                        audio=file_path,
-                        caption=caption,
-                        thumb=ph_path,
-                        duration=duration,
-                        progress=progress_for_pyrogram,
-                        progress_args=("Upload Started.....", status_message, time.time())
-                    )
-                
-                await status_message.edit_text("✅ File processing completed successfully!")
-                
+                file_path = await process_metadata(file_path, new_file_name, file_extension, user_id, status_message)
             except Exception as e:
-                await status_message.edit_text(f"❌ Upload failed: {str(e)}")
-                os.remove(file_path)
-                if ph_path:
-                    os.remove(ph_path)
+                await status_message.edit_text(f"❌ Metadata Error: {str(e)}")
                 return
 
-            os.remove(file_path)
-            if ph_path:
-                os.remove(ph_path)
+            # Handle thumbnail
+            thumbnail_path = None
+            caption_template = await madflixbotz.get_caption(message.chat.id)
+            custom_thumbnail = await madflixbotz.get_thumbnail(message.chat.id)
 
-            del renaming_operations[file_id]
-            
+            caption = (caption_template.format(
+                filename=new_file_name,
+                filesize=humanbytes(message.document.file_size),
+                duration=convert(duration)
+            ) if caption_template else f"**{new_file_name}**")
+
+            if custom_thumbnail:
+                thumbnail_path = await client.download_media(custom_thumbnail)
+                print("🖼️ Custom thumbnail applied")
+            elif media_type == "video" and message.video.thumbs:
+                thumbnail_path = await client.download_media(message.video.thumbs[0].file_id)
+
+            if thumbnail_path:
+                img = Image.open(thumbnail_path).convert("RGB")
+                img.thumbnail((320, 320))
+                img.save(thumbnail_path, "JPEG")
+
+            # Upload processed file
+            try:
+                upload_methods = {
+                    'document': client.send_document,
+                    'video': client.send_video,
+                    'audio': client.send_audio
+                }
+
+                upload_kwargs = {
+                    'chat_id': message.chat.id,
+                    media_type: file_path,
+                    'caption': caption,
+                    'thumb': thumbnail_path,
+                    'progress': progress_for_pyrogram,
+                    'progress_args': ("Upload Started.....", status_message, time.time())
+                }
+
+                if media_type in ['video', 'audio']:
+                    upload_kwargs['duration'] = duration
+
+                await upload_methods[media_type](**upload_kwargs)
+                await status_message.edit_text("✅ File processing completed successfully!")
+
+            except Exception as e:
+                await status_message.edit_text(f"❌ Upload failed: {str(e)}")
+            finally:
+                # Cleanup
+                os.remove(file_path)
+                if thumbnail_path:
+                    os.remove(thumbnail_path)
+                del active_rename_tasks[file_id]
+
         except Exception as e:
             print(f"❌ Error: {str(e)}")
             await message.reply_text(f"❌ An error occurred: {str(e)}")
-            if 'file_id' in locals() and file_id in renaming_operations:
-                del renaming_operations[file_id]
-
-@Client.on_message(filters.command("setaudioinfo"))
-async def set_audio_info(client, message):
-    try:
-        if len(message.command) < 2:
-            await message.reply_text("Usage: /setaudioinfo <artist> <title> <genre> <album>")
-            return
-
-        user_id = message.from_user.id
-        artist, title, genre, album = message.command[1:5]
-
-        await madflixbotz.set_audio_info(user_id, artist, title, genre, album)
-        await message.reply_text("✅ Audio metadata updated successfully!")
-    except Exception as e:
-        await message.reply_text(f"❌ Error updating audio metadata: {str(e)}")
-
-@Client.on_message(filters.command("applyaudioinfo"))
-async def apply_audio_info(client, message):
-    try:
-        user_id = message.from_user.id
-        audio_info = await madflixbotz.get_audio_info(user_id)
-
-        if not audio_info:
-            await message.reply_text("⚠️ No audio metadata found. Please set audio metadata first using /setaudioinfo.")
-            return
-
-        if not message.reply_to_message or not message.reply_to_message.audio:
-            await message.reply_text("⚠️ Please reply to an audio file to apply metadata.")
-            return
-
-        file_id = message.reply_to_message.audio.file_id
-        file_name = message.reply_to_message.audio.file_name
-        file_path = f"downloads/{file_name}"
-
-        await message.reply_text("⬇️ Downloading audio file...")
-        await client.download_media(message=message.reply_to_message, file_name=file_path)
-
-        await message.reply_text("🔧 Applying audio metadata...")
-        if await update_audio_metadata(file_path, audio_info):
-            await message.reply_text("✅ Audio metadata applied successfully!")
-        else:
-            await message.reply_text("❌ Unsupported audio format for metadata editing.")
-
-        os.remove(file_path)
-    except Exception as e:
-        await message.reply_text(f"❌ Error applying audio metadata: {str(e)}")
+            if 'file_id' in locals() and file_id in active_rename_tasks:
+                del active_rename_tasks[file_id]
