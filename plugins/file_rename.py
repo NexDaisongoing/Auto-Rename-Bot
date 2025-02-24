@@ -232,8 +232,6 @@ async def auto_rename_files(client, message):
                         ffmpeg_cmd,
                         '-i', file_path,
                         '-metadata', f'title={await madflixbotz.get_title(user_id)}',
-                        '-metadata', f'artist={await madflixbotz.get_artist(user_id)}',
-                        '-metadata', f'author={await madflixbotz.get_author(user_id)}',
                         '-metadata:s:v', f'title={await madflixbotz.get_video(user_id)}',
                         '-metadata:s:a', f'title={await madflixbotz.get_audio(user_id)}',
                         '-metadata:s:s', f'title={await madflixbotz.get_subtitle(user_id)}',
