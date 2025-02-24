@@ -6,6 +6,7 @@ from datetime import datetime
 from hachoir.metadata import extractMetadata
 from hachoir.parser import createParser
 from helper.utils import progress_for_pyrogram, humanbytes, convert
+from helper.utils import progress_for_pyrogram, humanbytes, convert
 from helper.database import madflixbotz
 from config import Config
 import os
@@ -301,7 +302,7 @@ async def auto_rename_files(client, message):
                     return
             else:
                 await status_message.edit_text("⚠️ Skipping metadata processing for unsupported file format")
-                
+
             ph_path = None
             c_caption = await madflixbotz.get_caption(message.chat.id)
             c_thumb = await madflixbotz.get_thumbnail(message.chat.id)
