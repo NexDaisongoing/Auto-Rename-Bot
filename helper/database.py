@@ -186,5 +186,12 @@ class Database:
     async def get_subtitle(self, user_id):
         video_meta = await self.get_video_metadata(user_id)
         return video_meta['subtitles']
+        
+    async def set_title(self, user_id, title):
+        await self.col.update_one({'_id': int(user_id)}, {'$set': {'video_title': title}}, upsert=True)
+
+    async def get_title(self, user_id):
+        user = await self.col.find_one({'_id': int(user_id)})
+        return user.get('video_title', await self.get_default_metadata(user_id))
 
 madflixbotz = Database(Config.DB_URL, Config.DB_NAME)
