@@ -3,30 +3,30 @@ from config import Config
 from .utils import send_log
 
 class Database:
-
     def __init__(self, uri, database_name):
         self._client = motor.motor_asyncio.AsyncIOMotorClient(uri)
         self.madflixbotz = self._client[database_name]
         self.col = self.madflixbotz.user
-
+        
     def new_user(self, id):
         return dict(
             _id=int(id),
             file_id=None,
             caption=None,
             format_template=None,
-            bool_metadata="Off",  # Default to "Off" to match metadata.py
-            metadata_code="Release Name",
-            title=None,
-            author=None,
-            artist=None,
-            video=None,
-            audio=None,
-            subtitle=None,
-            audio_artist=None,
+            # Audio metadata fields
             audio_title=None,
+            audio_artist=None,
+            audio_album=None,
             audio_genre=None,
-            audio_album=None
+            audio_author=None,
+            # Video metadata fields
+            video_title=None,
+            video_name=None,
+            video_audio_name=None,
+            video_subtitles=None,
+            # Default metadata value
+            default_metadata="@Anime_Onsen | @Matrix_Bots"
         )
 
     async def add_user(self, b, m):
@@ -51,6 +51,7 @@ class Database:
     async def delete_user(self, user_id):
         await self.col.delete_many({'_id': int(user_id)})
 
+    # Basic file operations remain unchanged
     async def set_thumbnail(self, id, file_id):
         await self.col.update_one({'_id': int(id)}, {'$set': {'file_id': file_id}})
 
@@ -71,118 +72,105 @@ class Database:
     async def get_format_template(self, id):
         user = await self.col.find_one({'_id': int(id)})
         return user.get('format_template', None)
-        
-    async def set_media_preference(self, id, media_type):
-        await self.col.update_one({'_id': int(id)}, {'$set': {'media_type': media_type}})
-        
-    async def get_media_preference(self, id):
-        user = await self.col.find_one({'_id': int(id)})
-        return user.get('media_type', None)
 
-    # Metadata functions updated to match metadata.py
-    async def set_metadata(self, user_id, status):
-        """Set metadata On or Off for a user"""
+    # Enhanced metadata operations for audio files
+    async def set_audio_metadata(self, user_id, title=None, artist=None, album=None, genre=None, author=None):
+        default = await self.get_default_metadata(user_id)
+        update_data = {
+            'audio_title': title if title else default,
+            'audio_artist': artist if artist else default,
+            'audio_album': album if album else default,
+            'audio_genre': genre if genre else default,
+            'audio_author': author if author else default
+        }
+        await self.col.update_one({'_id': int(user_id)}, {'$set': update_data}, upsert=True)
+
+    async def get_audio_metadata(self, user_id):
+        user = await self.col.find_one({'_id': int(user_id)})
+        default = await self.get_default_metadata(user_id)
+        return {
+            'title': user.get('audio_title', default),
+            'artist': user.get('audio_artist', default),
+            'album': user.get('audio_album', default),
+            'genre': user.get('audio_genre', default),
+            'author': user.get('audio_author', default)
+        }
+
+    # Enhanced metadata operations for video files
+    async def set_video_metadata(self, user_id, title=None, name=None, audio_name=None, subtitles=None):
+        default = await self.get_default_metadata(user_id)
+        update_data = {
+            'video_title': title if title else default,
+            'video_name': name if name else default,
+            'video_audio_name': audio_name if audio_name else default,
+            'video_subtitles': subtitles if subtitles else default
+        }
+        await self.col.update_one({'_id': int(user_id)}, {'$set': update_data}, upsert=True)
+
+    async def get_video_metadata(self, user_id):
+        user = await self.col.find_one({'_id': int(user_id)})
+        default = await self.get_default_metadata(user_id)
+        return {
+            'title': user.get('video_title', default),
+            'name': user.get('video_name', default),
+            'audio_name': user.get('video_audio_name', default),
+            'subtitles': user.get('video_subtitles', default)
+        }
+
+    # Default metadata value management
+    async def set_default_metadata(self, user_id, value):
         await self.col.update_one(
             {'_id': int(user_id)},
-            {'$set': {'bool_metadata': status}},  # Store as "On"/"Off"
+            {'$set': {'default_metadata': value}},
             upsert=True
         )
 
-    async def get_metadata(self, user_id):
-        """Get metadata status for a user (On/Off)"""
+    async def get_default_metadata(self, user_id):
         user = await self.col.find_one({'_id': int(user_id)})
-        if not user:
-            user = self.new_user(user_id)
-            await self.col.insert_one(user)
-            return "Off"  # Default to "Off"
-        return user.get('bool_metadata', "Off")
+        return user.get('default_metadata', "@Anime_Onsen | @Matrix_Bots")
 
-    async def set_metadata_code(self, user_id, metadata_code):
-        """Set custom metadata code for a user"""
-        await self.col.update_one(
-            {'_id': int(user_id)},
-            {'$set': {'metadata_code': metadata_code}},
-            upsert=True
-        )
-
-    async def get_metadata_code(self, user_id):
-        """Get custom metadata code for a user"""
-        user = await self.col.find_one({'_id': int(user_id)})
-        if not user:
-            user = self.new_user(user_id)
-            await self.col.insert_one(user)
-            return "Release Name"
-        return user.get('metadata_code', "Release Name")
-
-    # Additional metadata fields (Title, Author, Artist, Video, Audio, Subtitle)
+    # Compatibility methods for existing code
     async def set_title(self, user_id, title):
-        await self.col.update_one({'_id': int(user_id)}, {'$set': {'title': title}}, upsert=True)
+        await self.set_audio_metadata(user_id, title=title)
+        await self.set_video_metadata(user_id, title=title)
 
     async def get_title(self, user_id):
-        user = await self.col.find_one({'_id': int(user_id)})
-        return user.get('title', None)
+        audio_meta = await self.get_audio_metadata(user_id)
+        return audio_meta['title']
 
     async def set_author(self, user_id, author):
-        await self.col.update_one({'_id': int(user_id)}, {'$set': {'author': author}}, upsert=True)
+        await self.set_audio_metadata(user_id, author=author)
 
     async def get_author(self, user_id):
-        user = await self.col.find_one({'_id': int(user_id)})
-        return user.get('author', None)
+        audio_meta = await self.get_audio_metadata(user_id)
+        return audio_meta['author']
 
     async def set_artist(self, user_id, artist):
-        await self.col.update_one({'_id': int(user_id)}, {'$set': {'artist': artist}}, upsert=True)
+        await self.set_audio_metadata(user_id, artist=artist)
 
     async def get_artist(self, user_id):
-        user = await self.col.find_one({'_id': int(user_id)})
-        return user.get('artist', None)
+        audio_meta = await self.get_audio_metadata(user_id)
+        return audio_meta['artist']
 
     async def set_video(self, user_id, video):
-        await self.col.update_one({'_id': int(user_id)}, {'$set': {'video': video}}, upsert=True)
+        await self.set_video_metadata(user_id, name=video)
 
     async def get_video(self, user_id):
-        user = await self.col.find_one({'_id': int(user_id)})
-        return user.get('video', None)
+        video_meta = await self.get_video_metadata(user_id)
+        return video_meta['name']
 
     async def set_audio(self, user_id, audio):
-        await self.col.update_one({'_id': int(user_id)}, {'$set': {'audio': audio}}, upsert=True)
+        await self.set_video_metadata(user_id, audio_name=audio)
 
     async def get_audio(self, user_id):
-        user = await self.col.find_one({'_id': int(user_id)})
-        return user.get('audio', None)
+        video_meta = await self.get_video_metadata(user_id)
+        return video_meta['audio_name']
 
     async def set_subtitle(self, user_id, subtitle):
-        await self.col.update_one({'_id': int(user_id)}, {'$set': {'subtitle': subtitle}}, upsert=True)
+        await self.set_video_metadata(user_id, subtitles=subtitle)
 
     async def get_subtitle(self, user_id):
-        user = await self.col.find_one({'_id': int(user_id)})
-        return user.get('subtitle', None)
-
-    # Audio metadata fields (Artist, Title, Genre, Album)
-    async def set_audio_info(self, user_id, artist, title, genre, album):
-        """Set audio metadata for a user"""
-        await self.col.update_one(
-            {'_id': int(user_id)},
-            {'$set': {
-                'audio_artist': artist,
-                'audio_title': title,
-                'audio_genre': genre,
-                'audio_album': album
-            }},
-            upsert=True
-        )
-
-    async def get_audio_info(self, user_id):
-        """Get audio metadata for a user"""
-        user = await self.col.find_one({'_id': int(user_id)})
-        if not user:
-            user = self.new_user(user_id)
-            await self.col.insert_one(user)
-            return None
-        return {
-            'artist': user.get('audio_artist', None),
-            'title': user.get('audio_title', None),
-            'genre': user.get('audio_genre', None),
-            'album': user.get('audio_album', None)
-        }
+        video_meta = await self.get_video_metadata(user_id)
+        return video_meta['subtitles']
 
 madflixbotz = Database(Config.DB_URL, Config.DB_NAME)
