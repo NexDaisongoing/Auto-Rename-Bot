@@ -26,7 +26,7 @@ class Database:
             video_audio_name=None,
             video_subtitles=None,
             # Default metadata value
-            default_metadata="@Anime_Onsen | @Matrix_Bots"
+            default_metadata="@Anime_Onsen | @RDS_BOTS"
         )
 
     async def add_user(self, b, m):
