@@ -188,7 +188,7 @@ async def auto_rename_files(client, message):
                             format_template = format_template.replace(quality_placeholder, extracted_quality)
             
             _, file_extension = os.path.splitext(file_name)
-            new_file_name = f"{format_template}{file_extension}.replace("_", " ")
+            new_file_name = f"{format_template}{file_extension}".replace("_", " ")
             file_path = f"downloads/{new_file_name}"
             file = message
 
