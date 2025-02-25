@@ -225,7 +225,7 @@ async def auto_rename_files(client, message):
                     if not ffmpeg_cmd:
                         raise FileNotFoundError("FFmpeg not found. Please install FFmpeg.")
 
-                    metadata_file_path = f"Metadata/{new_file_name}"
+                    metadata_file_path = f"Metadata/{new_file_name.replace'_',' '}"
                     os.makedirs(os.path.dirname(metadata_file_path), exist_ok=True)
 
                     metadata_command = [
