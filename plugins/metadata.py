@@ -28,7 +28,7 @@ async def show_metadata_help(client, message):
 
 **Note:**
 • All fields are optional
-• Default value if not specified: @Anime_Onsen | @Matrix_Bots
+• Default value if not specified: @Anime_Onsen | @RDS_BOTS
 • Supported audio formats: .mp3, .m4a, .ogg, .wav, .eac3, .opus, .vorbis
 • Supported video formats: .mkv, .mp4, .mov, .avi
 
