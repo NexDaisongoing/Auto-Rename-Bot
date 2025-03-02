@@ -7,5 +7,4 @@ Pillow
 aiohttp
 pytz
 psutil
-imageio_ffmpeg
-mutagen
+ffmpeg
