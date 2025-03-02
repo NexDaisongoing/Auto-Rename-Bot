@@ -40,4 +40,4 @@ async def handle_path_command(client, message):
     else:
         response = "❌ FFmpeg not found on this system.\nPlease install it using:\n`sudo apt install ffmpeg`"
     
-    await message.reply_text(response
+    await message.reply_text(response)
