@@ -257,6 +257,11 @@ async def auto_rename_files(client, message):
                 metadata = extractMetadata(createParser(file_path))
                 if metadata and metadata.has("duration"):
                     duration = metadata.get('duration').seconds
+
+            except Exception:
+                pass
+            
+            await status_message.edit_text("⬆️ Starting upload...")
             
             # Process metadata if supported
             if file_extension.lower() in METADATA_SUPPORTED_FORMATS or file_extension.lower() in AUDIO_METADATA_FORMATS:
