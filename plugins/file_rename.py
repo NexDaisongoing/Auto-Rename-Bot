@@ -257,10 +257,6 @@ async def auto_rename_files(client, message):
                 metadata = extractMetadata(createParser(file_path))
                 if metadata and metadata.has("duration"):
                     duration = metadata.get('duration').seconds
-            except Exception:
-                pass
-            
-            await status_message.edit_text("⬆️ Starting upload...")
             
             # Process metadata if supported
             if file_extension.lower() in METADATA_SUPPORTED_FORMATS or file_extension.lower() in AUDIO_METADATA_FORMATS:
@@ -281,11 +277,8 @@ async def auto_rename_files(client, message):
             c_caption = await madflixbotz.get_caption(message.chat.id)
             c_thumb = await madflixbotz.get_thumbnail(message.chat.id)
             
-            caption = (c_caption.format(
-                filename=new_file_name,
-
-# Get file size from any media type
 file_size = 0
+
 if message.document:
     file_size = message.document.file_size
 elif message.video:
@@ -293,6 +286,8 @@ elif message.video:
 elif message.audio:
     file_size = message.audio.file_size
  
+            caption = (c_caption.format(
+                filename=new_file_name,
                 filesize=humanbytes(file_size), 
                 duration=convert(duration))
                 if c_caption else f"**{new_file_name}**")
