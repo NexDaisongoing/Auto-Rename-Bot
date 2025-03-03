@@ -282,8 +282,18 @@ async def auto_rename_files(client, message):
             c_thumb = await madflixbotz.get_thumbnail(message.chat.id)
             
             caption = (c_caption.format(
-                filename=new_file_name, 
-                filesize=humanbytes(message.document.file_size if message.document else 0), 
+                filename=new_file_name,
+
+# Get file size from any media type
+file_size = 0
+if message.document:
+    file_size = message.document.file_size
+elif message.video:
+    file_size = message.video.file_size
+elif message.audio:
+    file_size = message.audio.file_size
+ 
+                filesize=humanbytes(file_size), 
                 duration=convert(duration))
                 if c_caption else f"**{new_file_name}**")
             
