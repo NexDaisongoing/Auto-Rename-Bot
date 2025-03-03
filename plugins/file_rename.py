@@ -280,25 +280,25 @@ async def auto_rename_files(client, message):
             
             # Process thumbnail
             c_caption = await madflixbotz.get_caption(message.chat.id)
-            c_thumb = await madflixbotz.get_thumbnail(message.chat.id)
-            
+c_thumb = await madflixbotz.get_thumbnail(message.chat.id)
+
 try:
     file_size = getattr(message.document, 'file_size', 
                 getattr(message.video, 'file_size', 
                 getattr(message.audio, 'file_size', 0)))
 except AttributeError:
     file_size = 0  # Default to 0 if no file_size attribute is found
- 
-            caption = (c_caption.format(
-                filename=new_file_name,
-                filesize=humanbytes(file_size), 
-                duration=convert(duration))
-                if c_caption else f"**{new_file_name}**")
-            
-            if c_thumb:
-                ph_path = await client.download_media(c_thumb)
-            elif media_type == "video" and message.video and message.video.thumbs:
-                ph_path = await client.download_media(message.video.thumbs[0].file_id)
+
+caption = (c_caption.format(
+    filename=new_file_name,
+    filesize=humanbytes(file_size), 
+    duration=convert(duration))
+    if c_caption else f"**{new_file_name}**")
+
+if c_thumb:
+    ph_path = await client.download_media(c_thumb)
+elif media_type == "video" and message.video and message.video.thumbs and len(message.video.thumbs) > 0:
+    ph_path = await client.download_media(message.video.thumbs[0].file_id)
             
             if ph_path:
                 # Optimize image processing
