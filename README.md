@@ -1,4 +1,4 @@
-<img src="https://te.legra.ph/file/f7e2dbf311004a8455264-07878ef6b9ea6e9bf2.jpg" alt="logo" target="/blank">
+<img src="https://drive.google.com/file/d/1-0s0YrGrorLShDPwf4blMmPK8rOaVzuv/view?usp=drivesdk" alt="logo" target="/blank">
 
 <h1 align="center">
  <b><a href="https://t.me/autorenamexbot" target="/blank"> Auto Rename Bot </a></>
