@@ -227,8 +227,7 @@ async def auto_rename_files(client, message):
                         else:
                             format_template_copy = format_template_copy.replace(quality_placeholder, extracted_quality)
             
-            # Replace underscores with spaces
-            format_template_copy = format_template_copy.replace("_", " ")
+            # (Removed underscore replacement step)
             
             # Create new filename
             _, file_extension = os.path.splitext(file_name)
@@ -283,35 +282,29 @@ async def auto_rename_files(client, message):
             c_thumb = await madflixbotz.get_thumbnail(message.chat.id)
 
             try:
-                file_size = getattr(
-                    message.document, 'file_size',
-                    getattr(message.video, 'file_size', getattr(message.audio, 'file_size', 0))
-                )
+                file_size = getattr(message.document, 'file_size', 
+                            getattr(message.video, 'file_size', 
+                            getattr(message.audio, 'file_size', 0)))
             except AttributeError:
                 file_size = 0  # Default to 0 if no file_size attribute is found
 
-            caption = (
-                c_caption.format(
-                    filename=new_file_name,
-                    filesize=humanbytes(file_size),
-                    duration=convert(duration)
-                )
-                if c_caption else f"**{new_file_name}**"
-            )
+            caption = (c_caption.format(
+                filename=new_file_name,
+                filesize=humanbytes(file_size), 
+                duration=convert(duration))
+                if c_caption else f"**{new_file_name}**")
 
             if c_thumb:
                 ph_path = await client.download_media(c_thumb)
             elif media_type == "video" and message.video and message.video.thumbs and len(message.video.thumbs) > 0:
                 ph_path = await client.download_media(message.video.thumbs[0].file_id)
-            else:
-                ph_path = None
-
+            
             if ph_path:
                 # Optimize image processing
                 with Image.open(ph_path) as img:
                     img = img.convert("RGB").resize((320, 320))
                     img.save(ph_path, "JPEG", optimize=True)
-
+            
             # Upload processed file
             try:
                 if media_type == "document":
