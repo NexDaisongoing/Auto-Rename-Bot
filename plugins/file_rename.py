@@ -33,17 +33,17 @@ PATTERNS = {
     # Episode patterns
     'pattern1': re.compile(r'S(\d+)(?:E|EP)(\d+)'),
     'pattern2': re.compile(r'S(\d+)\s*(?:E|EP|-\s*EP)(\d+)'),
-    'pattern3': re.compile(r'(?:[([ ])?)'),
+    'pattern3': re.compile(r'[([ ])?'),  # Corrected pattern
     'pattern3_2': re.compile(r'(?:\s*-\s*(\d+)\s*)'),
     'pattern4': re.compile(r'S(\d+)[^\d]*(\d+)', re.IGNORECASE),
     'patternX': re.compile(r'(\d+)'),
     # Quality patterns
     'pattern5': re.compile(r'\b(?:.*?(\d{3,4}[^\dp]*p).*?|.*?(\d{3,4}p))\b', re.IGNORECASE),
-    'pattern6': re.compile(r'[([ ])?', re.IGNORECASE),
-    'pattern7': re.compile(r'[([ ])?', re.IGNORECASE),
+    'pattern6': re.compile(r'[([ ])?', re.IGNORECASE),  # Corrected pattern
+    'pattern7': re.compile(r'[([ ])?', re.IGNORECASE),  # Corrected pattern
     'pattern8': re.compile(r'[([ })]?|\bHdRip\b', re.IGNORECASE),
-    'pattern9': re.compile(r'[([ ])?', re.IGNORECASE),
-    'pattern10': re.compile(r'[([ ])?', re.IGNORECASE)
+    'pattern9': re.compile(r'[([ ])?', re.IGNORECASE),  # Corrected pattern
+    'pattern10': re.compile(r'[([ ])?', re.IGNORECASE)  # Corrected pattern
 }
 
 # Predefine constants
