@@ -1,4 +1,4 @@
-<img src="https://drive.google.com/file/d/1-0s0YrGrorLShDPwf4blMmPK8rOaVzuv/view?usp=drivesdk" alt="logo" target="/blank">
+<img src="https://drive.google.com/uc?export=download&id=1-0s0YrGrorLShDPwf4blMmPK8rOaVzuv" alt="logo" target="/blank">
 
 <h1 align="center">
  <b><a href="https://t.me/autorenamexbot" target="/blank"> Auto Rename Bot </a></>
