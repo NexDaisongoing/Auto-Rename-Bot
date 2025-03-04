@@ -277,11 +277,12 @@ async def auto_rename_files(client, message):
                 await status_message.edit_text("⚠️ Skipping metadata processing for unsupported file format")
             
             # Permanently rename the file using os.rename if the basename does not match the auto-rename format.
-            current_basename = os.path.basename(file_path)
-            if current_basename != new_file_name:
-                desired_path = os.path.join(os.path.dirname(file_path), new_file_name)
-                os.rename(file_path, desired_path)
-                file_path = desired_path
+            desired_path = os.path.join(os.path.dirname(file_path), new_file_name)
+try:
+    os.rename(file_path, desired_path)
+    file_path = desired_path  # Update file_path to the new location
+except OSError as e:
+    raise RuntimeError(f"Error occurred while renaming file from {file_path} to {desired_path}: {e}")
             
             # Process thumbnail
             c_caption = await madflixbotz.get_caption(message.chat.id)
