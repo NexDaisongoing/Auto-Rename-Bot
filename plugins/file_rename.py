@@ -227,7 +227,7 @@ async def auto_rename_files(client, message):
                         else:
                             format_template_copy = format_template_copy.replace(quality_placeholder, extracted_quality)
             
-            # (Removed underscore replacement step)
+            # Note: The underscore-to-space replacement step has been removed.
             
             # Create new filename
             _, file_extension = os.path.splitext(file_name)
@@ -256,7 +256,6 @@ async def auto_rename_files(client, message):
                 metadata = extractMetadata(createParser(file_path))
                 if metadata and metadata.has("duration"):
                     duration = metadata.get('duration').seconds
-
             except Exception:
                 pass
             
@@ -277,23 +276,30 @@ async def auto_rename_files(client, message):
             else:
                 await status_message.edit_text("⚠️ Skipping metadata processing for unsupported file format")
             
+            # Permanently rename the file using os.rename if the basename does not match the auto-rename format.
+            current_basename = os.path.basename(file_path)
+            if current_basename != new_file_name:
+                desired_path = os.path.join(os.path.dirname(file_path), new_file_name)
+                os.rename(file_path, desired_path)
+                file_path = desired_path
+            
             # Process thumbnail
             c_caption = await madflixbotz.get_caption(message.chat.id)
             c_thumb = await madflixbotz.get_thumbnail(message.chat.id)
-
+            
             try:
                 file_size = getattr(message.document, 'file_size', 
                             getattr(message.video, 'file_size', 
                             getattr(message.audio, 'file_size', 0)))
             except AttributeError:
                 file_size = 0  # Default to 0 if no file_size attribute is found
-
+            
             caption = (c_caption.format(
                 filename=new_file_name,
                 filesize=humanbytes(file_size), 
                 duration=convert(duration))
                 if c_caption else f"**{new_file_name}**")
-
+            
             if c_thumb:
                 ph_path = await client.download_media(c_thumb)
             elif media_type == "video" and message.video and message.video.thumbs and len(message.video.thumbs) > 0:
