@@ -33,18 +33,19 @@ PATTERNS = {
     # Episode patterns
     'pattern1': re.compile(r'S(\d+)(?:E|EP)(\d+)'),
     'pattern2': re.compile(r'S(\d+)\s*(?:E|EP|-\s*EP)(\d+)'),
-    'pattern3': re.compile(r'[([ ])?'),  # Corrected pattern
+    'pattern3': re.compile(r'(?:[([<{]?\s*(?:E|EP)\s*(\d+)\s*[)\]>}]?)'),
     'pattern3_2': re.compile(r'(?:\s*-\s*(\d+)\s*)'),
     'pattern4': re.compile(r'S(\d+)[^\d]*(\d+)', re.IGNORECASE),
     'patternX': re.compile(r'(\d+)'),
     # Quality patterns
     'pattern5': re.compile(r'\b(?:.*?(\d{3,4}[^\dp]*p).*?|.*?(\d{3,4}p))\b', re.IGNORECASE),
-    'pattern6': re.compile(r'[([ ])?', re.IGNORECASE),  # Corrected pattern
-    'pattern7': re.compile(r'[([ ])?', re.IGNORECASE),  # Corrected pattern
-    'pattern8': re.compile(r'[([ })]?|\bHdRip\b', re.IGNORECASE),
-    'pattern9': re.compile(r'[([ ])?', re.IGNORECASE),  # Corrected pattern
-    'pattern10': re.compile(r'[([ ])?', re.IGNORECASE)  # Corrected pattern
+    'pattern6': re.compile(r'[([<{]?\s*4k\s*[)\]>}]?', re.IGNORECASE),
+    'pattern7': re.compile(r'[([<{]?\s*2k\s*[)\]>}]?', re.IGNORECASE),
+    'pattern8': re.compile(r'[([<{]?\s*HdRip\s*[)\]>}]?|\bHdRip\b', re.IGNORECASE),
+    'pattern9': re.compile(r'[([<{]?\s*4kX264\s*[)\]>}]?', re.IGNORECASE),
+    'pattern10': re.compile(r'[([<{]?\s*4kx265\s*[)\]>}]?', re.IGNORECASE)
 }
+
 
 # Predefine constants
 METADATA_SUPPORTED_FORMATS: Set[str] = {
